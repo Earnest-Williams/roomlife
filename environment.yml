@@ -1,0 +1,13 @@
+# Managed by sdc (direnv + mamba/conda).
+# The env name follows the directory name: roomlife
+name: roomlife
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - pyyaml
+  - rich
+  - typer
+  - pytest
+  - ruff

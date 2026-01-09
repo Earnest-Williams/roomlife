@@ -1,0 +1,19 @@
+spaces:
+  - id: room_001
+    name: Tiny room
+    kind: room
+    base_temperature_c: 14
+    has_window: false
+    connections: [hall_001]
+  - id: hall_001
+    name: Hallway
+    kind: shared
+    base_temperature_c: 12
+    has_window: false
+    connections: [room_001, bath_001]
+  - id: bath_001
+    name: Shared bathroom
+    kind: shared
+    base_temperature_c: 13
+    has_window: false
+    connections: [hall_001]

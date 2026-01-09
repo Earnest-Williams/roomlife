@@ -1,0 +1,10 @@
+items:
+  - id: bed_basic
+    name: Basic bed
+    tags: [sleep]
+  - id: desk_worn
+    name: Worn desk
+    tags: [study, work]
+  - id: kettle
+    name: Kettle
+    tags: [cook]
