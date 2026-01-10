@@ -73,17 +73,24 @@ check_dependencies() {
     else
         print_success "RoomLife package is installed"
     fi
+}
 
-    # Check tkinter for GUI
+check_tkinter() {
+    # Check tkinter for GUI - only called when GUI is needed
     if ! python3 -c "import tkinter" &> /dev/null; then
         print_error "Tkinter is not installed"
         print_info "Install tkinter with: sudo apt-get install python3-tk (Ubuntu/Debian)"
+        print_info "On macOS/Windows, tkinter is usually pre-installed with Python"
         exit 1
     fi
+    print_success "Tkinter is available"
 }
 
 launch_gui() {
     print_info "Launching RoomLife GUI..."
+
+    # Check tkinter is available
+    check_tkinter
 
     if [ ! -f "roomlife_gui.py" ]; then
         print_error "roomlife_gui.py not found in current directory"

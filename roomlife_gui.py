@@ -12,7 +12,7 @@ from pathlib import Path
 
 from roomlife.engine import new_game
 from roomlife.api_service import RoomLifeAPI
-from roomlife.io import StatePersistenceAdapter
+from roomlife.io import save_state, load_state
 
 
 class RoomLifeGUI:
@@ -26,7 +26,6 @@ class RoomLifeGUI:
         # Initialize API
         self.state = new_game()
         self.api = RoomLifeAPI(self.state)
-        self.persistence = StatePersistenceAdapter()
 
         # Subscribe to events
         self.api.subscribe_to_events(self.on_event)
@@ -251,8 +250,10 @@ class RoomLifeGUI:
     def on_event(self, event):
         """Callback for game events."""
         self.log_message(f"📌 Event: {event.event_id}")
-        if event.description:
-            self.log_message(f"  {event.description}")
+        if event.params:
+            # Show relevant params if present
+            for key, value in event.params.items():
+                self.log_message(f"  {key}: {value}")
 
     def on_state_change(self, state):
         """Callback for state changes."""
@@ -286,7 +287,7 @@ class RoomLifeGUI:
         )
         if filepath:
             try:
-                self.persistence.save_state(self.state, filepath)
+                save_state(self.state, Path(filepath))
                 self.log_message(f"💾 Game saved to {filepath}")
                 messagebox.showinfo("Save Game", f"Game saved successfully to {filepath}")
             except Exception as e:
@@ -300,7 +301,7 @@ class RoomLifeGUI:
         )
         if filepath:
             try:
-                self.state = self.persistence.load_state(filepath)
+                self.state = load_state(Path(filepath))
                 self.api = RoomLifeAPI(self.state)
                 self.api.subscribe_to_events(self.on_event)
                 self.api.subscribe_to_state_changes(self.on_state_change)
