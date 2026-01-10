@@ -96,21 +96,20 @@ class RoomLifeAPI:
             water=self.state.utilities.water,
         )
 
-        # Build skills list (only non-zero skills)
+        # Build skills list (all skills for completeness)
         skills = []
         for skill_name in SKILL_NAMES:
             skill = self.state.player.skills_detailed[skill_name]
-            if skill.value > 0 or True:  # Include all for completeness
-                aptitude_name = SKILL_TO_APTITUDE[skill_name]
-                aptitude_value = getattr(self.state.player.aptitudes, aptitude_name)
-                skills.append(SkillInfo(
-                    name=skill_name,
-                    value=skill.value,
-                    rust_rate=skill.rust_rate,
-                    last_tick=skill.last_tick,
-                    aptitude=aptitude_name,
-                    aptitude_value=aptitude_value,
-                ))
+            aptitude_name = SKILL_TO_APTITUDE[skill_name]
+            aptitude_value = getattr(self.state.player.aptitudes, aptitude_name)
+            skills.append(SkillInfo(
+                name=skill_name,
+                value=skill.value,
+                rust_rate=skill.rust_rate,
+                last_tick=skill.last_tick,
+                aptitude=aptitude_name,
+                aptitude_value=aptitude_value,
+            ))
 
         # Build aptitudes dict
         aptitudes = {
@@ -121,6 +120,8 @@ class RoomLifeAPI:
         }
 
         # Build current location with items
+        if self.state.world.location not in self.state.spaces:
+            raise ValueError(f"Invalid location: {self.state.world.location} not found in spaces")
         current_space = self.state.spaces[self.state.world.location]
         current_items = self.state.get_items_at(self.state.world.location)
         current_location = LocationInfo(
