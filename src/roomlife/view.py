@@ -23,6 +23,30 @@ def build_view_model(state: State) -> Dict:
                 "value": round(skill.value, 2),
             })
 
+    # Build actions list with movement options
+    actions_hint = [
+        {"id": "work", "label": "Work a shift"},
+        {"id": "study", "label": "Study"},
+        {"id": "sleep", "label": "Sleep"},
+        {"id": "eat_charity_rice", "label": "Eat charity rice"},
+        {"id": "pay_utilities", "label": "Pay utilities"},
+        {"id": "skip_utilities", "label": "Skip utilities"},
+        {"id": "shower", "label": "Shower"},
+        {"id": "cook_basic_meal", "label": "Cook basic meal"},
+        {"id": "clean_room", "label": "Clean room"},
+        {"id": "exercise", "label": "Exercise"},
+    ]
+
+    # Add movement actions based on current location connections
+    if space and space.connections:
+        for connected_space_id in space.connections:
+            connected_space = state.spaces.get(connected_space_id)
+            if connected_space:
+                actions_hint.append({
+                    "id": f"move_{connected_space_id}",
+                    "label": f"Move to {connected_space.name}"
+                })
+
     return {
         "time": {"day": state.world.day, "slice": state.world.slice},
         "player": {
@@ -68,12 +92,5 @@ def build_view_model(state: State) -> Dict:
             for it in state.get_items_at(loc)
         ],
         "recent_events": state.event_log[-6:],
-        "actions_hint": [
-            {"id": "work", "label": "Work a shift"},
-            {"id": "study", "label": "Study"},
-            {"id": "sleep", "label": "Sleep"},
-            {"id": "eat_charity_rice", "label": "Eat charity rice"},
-            {"id": "pay_utilities", "label": "Pay utilities"},
-            {"id": "skip_utilities", "label": "Skip utilities"},
-        ],
+        "actions_hint": actions_hint,
     }

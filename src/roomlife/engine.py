@@ -306,6 +306,33 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
 
         _log(state, "action.exercise", fatigue_cost=fatigue_cost, skill_gain=round(gain, 2))
 
+    elif action_id.startswith("move_"):
+        # Extract target location from action_id (e.g., "move_hall_001" -> "hall_001")
+        target_location = action_id[5:]  # Remove "move_" prefix
+        current_location = state.world.location
+
+        # Validate not moving to same location (check this first for better error message)
+        if target_location == current_location:
+            _log(state, "action.failed", action_id=action_id, reason="already_here")
+        # Validate target location exists
+        elif target_location not in state.spaces:
+            _log(state, "action.failed", action_id=action_id, reason="location_not_found")
+        # Validate target is connected to current location
+        elif target_location not in state.spaces[current_location].connections:
+            _log(state, "action.failed", action_id=action_id, reason="location_not_connected")
+        else:
+            # Move to new location
+            from_space = state.spaces[current_location]
+            to_space = state.spaces[target_location]
+            state.world.location = target_location
+
+            # Small fatigue cost for movement
+            fatigue_cost = 2
+            state.player.needs.fatigue = min(100, state.player.needs.fatigue + fatigue_cost)
+
+            _log(state, "action.move", from_location=from_space.name, to_location=to_space.name,
+                 from_id=current_location, to_id=target_location)
+
     else:
         _log(state, "action.unknown", action_id=action_id)
 
