@@ -69,7 +69,55 @@ PYTHONPATH=src python examples/api_json_export.py
 - `all_actions.json` - All possible actions
 - `action_result.json` - Result of last action
 
-### 5. REST API Server (`api_rest_server.py`)
+### 5. GUI Application (`../roomlife_gui.py`)
+
+Full-featured Tkinter GUI (located in root directory):
+- Real-time state visualization (needs, traits, utilities)
+- Interactive action buttons
+- Event log with action outcomes
+- Save/Load with file dialogs
+- Automatic UI updates via event subscriptions
+
+**Requirements:**
+```bash
+# Ubuntu/Debian
+sudo apt-get install python3-tk
+
+# Or on macOS/Windows, tkinter is usually pre-installed
+```
+
+**Run:**
+```bash
+python3 roomlife_gui.py
+# Or use the launcher:
+./launch.sh gui
+```
+
+**Features:**
+- Status panel showing day, time, location, money
+- Progress bars for all needs and traits
+- Utilities status display
+- Dynamic action buttons that update based on game state
+- Scrolling event log
+- File menu for save/load/new game
+
+### 6. Launcher Script (`../launch.sh`)
+
+Interactive launcher for all components (located in root directory):
+- Menu-based component selection
+- Dependency checking
+- Multiple launch modes
+
+**Run:**
+```bash
+./launch.sh          # Interactive menu
+./launch.sh gui      # Launch GUI directly
+./launch.sh rest     # Launch REST server
+./launch.sh cli      # Launch CLI demo
+./launch.sh example  # Run basic example
+```
+
+### 7. REST API Server (`api_rest_server.py`)
 
 Complete REST API server using Flask:
 - RESTful endpoints
