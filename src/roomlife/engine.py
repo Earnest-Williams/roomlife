@@ -143,6 +143,13 @@ def _apply_environment(state: State, rng: random.Random) -> None:
         n.mood = max(0, n.mood - 2)
         _log(state, "utility.no_power")
 
+    # Calculate energy based on fatigue and fitness trait
+    # Energy is inversely proportional to fatigue
+    base_energy = 100 - n.fatigue
+    # Fitness trait provides a bonus/penalty (fitness 50 = neutral, above = bonus, below = penalty)
+    fitness_modifier = (state.player.traits.fitness - 50) * 0.2
+    n.energy = max(0, min(100, int(base_energy + fitness_modifier)))
+
     if rng.random() < 0.05:
         _log(state, "building.noise", severity="low")
 
