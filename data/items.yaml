@@ -8,3 +8,21 @@ items:
   - id: kettle
     name: Kettle
     tags: [cook]
+  - id: chair_basic
+    name: Basic chair
+    tags: [study, work]
+  - id: lamp_desk
+    name: Desk lamp
+    tags: [study, work]
+  - id: towel
+    name: Towel
+    tags: [hygiene]
+  - id: cleaning_supplies
+    name: Cleaning supplies
+    tags: [clean]
+  - id: yoga_mat
+    name: Yoga mat
+    tags: [exercise]
+  - id: bookshelf
+    name: Small bookshelf
+    tags: [study]

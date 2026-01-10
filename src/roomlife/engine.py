@@ -27,6 +27,85 @@ def _get_skill(state: State, skill_name: str) -> Skill:
     return state.player.skills_detailed[skill_name]
 
 
+def _load_item_tags() -> Dict[str, List[str]]:
+    """Load item tags from items.yaml data file."""
+    import yaml
+    from pathlib import Path
+
+    data_path = Path(__file__).parent.parent.parent / "data" / "items.yaml"
+    with open(data_path, "r") as f:
+        data = yaml.safe_load(f)
+
+    item_tags = {}
+    for item_def in data.get("items", []):
+        item_tags[item_def["id"]] = item_def.get("tags", [])
+    return item_tags
+
+
+# Cache item tags to avoid reloading YAML repeatedly
+_ITEM_TAGS_CACHE = None
+
+
+def _get_item_tags(item_id: str) -> List[str]:
+    """Get tags for a specific item."""
+    global _ITEM_TAGS_CACHE
+    if _ITEM_TAGS_CACHE is None:
+        _ITEM_TAGS_CACHE = _load_item_tags()
+    return _ITEM_TAGS_CACHE.get(item_id, [])
+
+
+def _find_item_with_tag(state: State, tag: str, location: str = None) -> Item | None:
+    """Find an item with a specific tag at the current or specified location."""
+    if location is None:
+        location = state.world.location
+
+    items_here = state.get_items_at(location)
+    for item in items_here:
+        if tag in _get_item_tags(item.item_id):
+            return item
+    return None
+
+
+def _get_item_effectiveness(item: Item) -> float:
+    """Calculate item effectiveness multiplier based on condition_value (0-100)."""
+    if item.condition_value >= 90:
+        return 1.1  # pristine items give bonus
+    elif item.condition_value >= 70:
+        return 1.0  # used items work normally
+    elif item.condition_value >= 40:
+        return 0.8  # worn items less effective
+    elif item.condition_value >= 20:
+        return 0.5  # broken items barely work
+    else:
+        return 0.3  # filthy items very poor
+
+
+def _update_item_condition_string(item: Item) -> None:
+    """Update the condition string based on condition_value."""
+    if item.condition_value >= 90:
+        item.condition = "pristine"
+    elif item.condition_value >= 70:
+        item.condition = "used"
+    elif item.condition_value >= 40:
+        item.condition = "worn"
+    elif item.condition_value >= 20:
+        item.condition = "broken"
+    else:
+        item.condition = "filthy"
+
+
+def _degrade_item(item: Item, base_degradation: int = 5) -> None:
+    """Degrade an item's condition based on use."""
+    # Worse condition items degrade faster
+    if item.condition_value < 40:
+        degradation = int(base_degradation * 1.5)
+    else:
+        degradation = base_degradation
+
+    item.condition_value = max(0, item.condition_value - degradation)
+    _update_item_condition_string(item)
+
+
 def _apply_skill_rust(state: State, current_tick: int) -> None:
     for skill_name in SKILL_NAMES:
         skill = _get_skill(state, skill_name)
@@ -87,9 +166,9 @@ def new_game() -> State:
         "bath_001": Space("bath_001", "Shared bathroom", "shared", 13, False, ["hall_001"]),
     }
     state.items = [
-        Item("bed_basic", condition="used", placed_in="room_001", slot="floor"),
-        Item("desk_worn", condition="worn", placed_in="room_001", slot="wall"),
-        Item("kettle", condition="used", placed_in="room_001", slot="surface"),
+        Item("bed_basic", condition="used", condition_value=80, placed_in="room_001", slot="floor"),
+        Item("desk_worn", condition="worn", condition_value=60, placed_in="room_001", slot="wall"),
+        Item("kettle", condition="used", condition_value=75, placed_in="room_001", slot="surface"),
     ]
     # Validate that the starting location exists in the world
     if state.world.location not in state.spaces:
@@ -162,38 +241,81 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
     current_tick = _calculate_current_tick(state)
 
     if action_id == "work":
-        state.player.money_pence += 3500
-        fatigue_cost = 15
-        discipline_mod = 1.0 - (state.player.traits.discipline / 100.0) * 0.2
-        fatigue_cost = int(fatigue_cost * discipline_mod)
-        state.player.needs.fatigue = min(100, state.player.needs.fatigue + fatigue_cost)
-        state.player.needs.mood = max(0, state.player.needs.mood - 2)
-        state.player.skills["general"] = state.player.skills.get("general", 0) + 1
-        gain = _gain_skill_xp(state, "technical_literacy", 2.0, current_tick)
-        _track_habit(state, "discipline", 10)
-        _track_habit(state, "confidence", 8)
-        _log(state, "action.work", earned_pence=3500, skill_gain=round(gain, 2))
+        # Check for desk/workspace
+        desk = _find_item_with_tag(state, "work")
+        if desk is None:
+            _log(state, "action.failed", action_id="work", reason="no_workspace")
+        else:
+            # Item effectiveness affects productivity and fatigue
+            item_effectiveness = _get_item_effectiveness(desk)
+            base_earnings = 3500
+            earnings = int(base_earnings * item_effectiveness)
+
+            state.player.money_pence += earnings
+            fatigue_cost = 15
+            discipline_mod = 1.0 - (state.player.traits.discipline / 100.0) * 0.2
+            # Better desk reduces fatigue
+            fatigue_cost = int(fatigue_cost * discipline_mod * (2.0 - item_effectiveness))
+            state.player.needs.fatigue = min(100, state.player.needs.fatigue + fatigue_cost)
+            state.player.needs.mood = max(0, state.player.needs.mood - 2)
+            state.player.skills["general"] = state.player.skills.get("general", 0) + 1
+            gain = _gain_skill_xp(state, "technical_literacy", 2.0, current_tick)
+            _track_habit(state, "discipline", 10)
+            _track_habit(state, "confidence", 8)
+
+            # Degrade desk with use
+            _degrade_item(desk, base_degradation=3)
+
+            _log(state, "action.work", earned_pence=earnings, skill_gain=round(gain, 2),
+                 item_condition=desk.condition, item_effectiveness=round(item_effectiveness, 2))
 
     elif action_id == "study":
-        fatigue_base = 10
-        ergonomics_bonus = _get_skill(state, "ergonomics").value * 0.1
-        fatigue_cost = int(fatigue_base * (1.0 - ergonomics_bonus))
-        state.player.needs.fatigue = min(100, state.player.needs.fatigue + fatigue_cost)
-        state.player.needs.mood = min(100, state.player.needs.mood + 1)
-        state.player.skills["general"] = state.player.skills.get("general", 0) + 2
-        gain = _gain_skill_xp(state, "focus", 3.0, current_tick)
-        _track_habit(state, "discipline", 15)
-        _log(state, "action.study", skill_gain=round(gain, 2))
+        # Check for desk/study area
+        desk = _find_item_with_tag(state, "study")
+        if desk is None:
+            _log(state, "action.failed", action_id="study", reason="no_study_area")
+        else:
+            # Item effectiveness affects learning
+            item_effectiveness = _get_item_effectiveness(desk)
+            fatigue_base = 10
+            ergonomics_bonus = _get_skill(state, "ergonomics").value * 0.1
+            # Better desk reduces fatigue
+            fatigue_cost = int(fatigue_base * (1.0 - ergonomics_bonus) * (2.0 - item_effectiveness))
+            state.player.needs.fatigue = min(100, state.player.needs.fatigue + fatigue_cost)
+            state.player.needs.mood = min(100, state.player.needs.mood + 1)
+            state.player.skills["general"] = state.player.skills.get("general", 0) + 2
+            # Better desk improves learning
+            gain = _gain_skill_xp(state, "focus", 3.0 * item_effectiveness, current_tick)
+            _track_habit(state, "discipline", 15)
+
+            # Degrade desk with use
+            _degrade_item(desk, base_degradation=2)
+
+            _log(state, "action.study", skill_gain=round(gain, 2),
+                 item_condition=desk.condition, item_effectiveness=round(item_effectiveness, 2))
 
     elif action_id == "sleep":
-        base_recovery = 35
-        fitness_bonus = state.player.traits.fitness / 100.0 * 10
-        total_recovery = int(base_recovery + fitness_bonus)
-        state.player.needs.fatigue = max(0, state.player.needs.fatigue - total_recovery)
-        state.player.needs.mood = min(100, state.player.needs.mood + 3)
-        introspection_stress_reduction = _get_skill(state, "introspection").value * 0.5
-        state.player.needs.stress = max(0, int(state.player.needs.stress - introspection_stress_reduction))
-        _log(state, "action.sleep", fatigue_recovered=total_recovery)
+        # Check for bed
+        bed = _find_item_with_tag(state, "sleep")
+        if bed is None:
+            _log(state, "action.failed", action_id="sleep", reason="no_bed")
+        else:
+            # Calculate recovery with item effectiveness
+            item_effectiveness = _get_item_effectiveness(bed)
+            base_recovery = 35
+            fitness_bonus = state.player.traits.fitness / 100.0 * 10
+            total_recovery = int((base_recovery + fitness_bonus) * item_effectiveness)
+
+            state.player.needs.fatigue = max(0, state.player.needs.fatigue - total_recovery)
+            state.player.needs.mood = min(100, state.player.needs.mood + 3)
+            introspection_stress_reduction = _get_skill(state, "introspection").value * 0.5
+            state.player.needs.stress = max(0, int(state.player.needs.stress - introspection_stress_reduction))
+
+            # Degrade bed with use
+            _degrade_item(bed, base_degradation=2)
+
+            _log(state, "action.sleep", fatigue_recovered=total_recovery,
+                 item_condition=bed.condition, item_effectiveness=round(item_effectiveness, 2))
 
     elif action_id == "eat_charity_rice":
         base_hunger_reduction = 25
@@ -246,22 +368,27 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
         if state.player.money_pence < cost:
             _log(state, "action.failed", action_id="cook_basic_meal", reason="insufficient_funds")
         else:
-            # Check for kettle or stove (checking current location items)
-            items_here = state.get_items_at(state.world.location)
-            has_cooking_item = any(item.item_id in ["kettle", "stove"] for item in items_here)
+            # Check for cooking item using tag system
+            cooking_item = _find_item_with_tag(state, "cook")
 
-            if not has_cooking_item:
+            if cooking_item is None:
                 _log(state, "action.failed", action_id="cook_basic_meal", reason="no_cooking_item")
             else:
+                # Item effectiveness affects cooking quality
+                item_effectiveness = _get_item_effectiveness(cooking_item)
+
                 # Deduct cost
                 state.player.money_pence -= cost
 
                 # Base hunger reduction
-                hunger_reduction = 35
+                base_hunger_reduction = 35
 
                 # Creativity trait bonus: +10% hunger reduction if creativity >= 75
                 if state.player.traits.creativity >= 75:
-                    hunger_reduction = int(hunger_reduction * 1.1)
+                    base_hunger_reduction = int(base_hunger_reduction * 1.1)
+
+                # Item effectiveness affects meal quality
+                hunger_reduction = int(base_hunger_reduction * item_effectiveness)
 
                 # Apply effects
                 state.player.needs.hunger = max(0, state.player.needs.hunger - hunger_reduction)
@@ -270,7 +397,12 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
                 # Gain nutrition skill
                 gain = _gain_skill_xp(state, "nutrition", 1.5, current_tick)
 
-                _log(state, "action.cook_basic_meal", cost_pence=cost, hunger_reduced=hunger_reduction, skill_gain=round(gain, 2))
+                # Degrade cooking item with use
+                _degrade_item(cooking_item, base_degradation=4)
+
+                _log(state, "action.cook_basic_meal", cost_pence=cost, hunger_reduced=hunger_reduction,
+                     skill_gain=round(gain, 2), item_condition=cooking_item.condition,
+                     item_effectiveness=round(item_effectiveness, 2))
 
     elif action_id == "clean_room":
         # Apply effects
@@ -305,6 +437,58 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
         gain = _gain_skill_xp(state, "reflexivity", 2.5, current_tick)
 
         _log(state, "action.exercise", fatigue_cost=fatigue_cost, skill_gain=round(gain, 2))
+
+    elif action_id.startswith("repair_"):
+        # Extract item_id from action_id (e.g., "repair_bed_basic" -> "bed_basic")
+        item_id = action_id[7:]  # Remove "repair_" prefix
+
+        # Find the item at current location
+        items_here = state.get_items_at(state.world.location)
+        item_to_repair = None
+        for item in items_here:
+            if item.item_id == item_id:
+                item_to_repair = item
+                break
+
+        if item_to_repair is None:
+            _log(state, "action.failed", action_id=action_id, reason="item_not_found")
+        elif item_to_repair.condition_value >= 90:
+            _log(state, "action.failed", action_id=action_id, reason="item_already_pristine")
+        else:
+            # Calculate repair cost based on damage
+            damage = 100 - item_to_repair.condition_value
+            base_cost = int(damage * 10)  # 10 pence per condition point
+
+            # Maintenance skill reduces cost
+            maintenance_skill = _get_skill(state, "maintenance").value
+            discount = maintenance_skill * 2
+            cost = max(50, int(base_cost - discount))  # Minimum 50p
+
+            if state.player.money_pence < cost:
+                _log(state, "action.failed", action_id=action_id, reason="insufficient_funds")
+            else:
+                # Deduct cost
+                state.player.money_pence -= cost
+
+                # Calculate restoration based on maintenance skill
+                base_restoration = 30
+                skill_bonus = maintenance_skill * 0.5
+                total_restoration = int(base_restoration + skill_bonus)
+
+                # Restore item condition
+                old_condition = item_to_repair.condition
+                item_to_repair.condition_value = min(100, item_to_repair.condition_value + total_restoration)
+                _update_item_condition_string(item_to_repair)
+
+                # Gain maintenance skill
+                gain = _gain_skill_xp(state, "maintenance", 2.0, current_tick)
+
+                # Track frugality habit
+                _track_habit(state, "frugality", 5)
+
+                _log(state, "action.repair_item", item_id=item_id, cost_pence=cost,
+                     restoration=total_restoration, old_condition=old_condition,
+                     new_condition=item_to_repair.condition, skill_gain=round(gain, 2))
 
     elif action_id.startswith("move_"):
         # Extract target location from action_id (e.g., "move_hall_001" -> "hall_001")
