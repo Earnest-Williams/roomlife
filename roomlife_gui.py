@@ -199,15 +199,15 @@ class RoomLifeGUI:
             widget.destroy()
 
         # Get available actions
-        actions = self.api.get_available_actions()
+        actions_response = self.api.get_available_actions()
 
-        if not actions:
+        if not actions_response.actions:
             label = ttk.Label(self.actions_inner_frame, text="No actions available")
             label.pack(pady=5)
             return
 
         # Create button for each action
-        for action in actions:
+        for action in actions_response.actions:
             frame = ttk.Frame(self.actions_inner_frame)
             frame.pack(fill=tk.X, pady=2)
 
