@@ -5,7 +5,17 @@ from dataclasses import asdict
 from typing import Dict, List, Tuple
 
 from .constants import (
+    DOCTOR_ILLNESS_RECOVERY,
+    DOCTOR_INJURY_RECOVERY,
+    DOCTOR_VISIT_COST,
+    HEALTH_DEGRADATION_PER_EXTREME_NEED,
+    HEALTH_EXTREME_NEED_THRESHOLD,
+    HEALTH_PENALTY_THRESHOLD,
+    ILLNESS_RECOVERY_PER_TURN,
+    INJURY_RECOVERY_PER_TURN,
     MAX_EVENT_LOG,
+    REST_ILLNESS_RECOVERY,
+    REST_INJURY_RECOVERY,
     SKILL_NAMES,
     SKILL_TO_APTITUDE,
     TIME_SLICES,
@@ -106,6 +116,29 @@ def _degrade_item(item: Item, base_degradation: int = 5) -> None:
     _update_item_condition_string(item)
 
 
+def _calculate_health(state: State) -> None:
+    """Calculate overall health based on illness and injury."""
+    n = state.player.needs
+    health_penalty = (n.illness + n.injury) * 0.5
+    n.health = max(0, min(100, int(100 - health_penalty)))
+
+
+def _get_health_penalty(state: State) -> float:
+    """Calculate health penalty multiplier for actions (0.5 to 1.0).
+
+    Returns:
+        1.0 if health >= HEALTH_PENALTY_THRESHOLD
+        0.5 if health = 0
+        Linear interpolation between 0.5 and 1.0 for health below threshold
+    """
+    _calculate_health(state)  # Ensure health is up-to-date
+    health = state.player.needs.health
+    if health >= HEALTH_PENALTY_THRESHOLD:
+        return 1.0
+    # Linear interpolation: health 0 = 0.5, health 50 = 1.0
+    return 0.5 + (health / HEALTH_PENALTY_THRESHOLD) * 0.5
+
+
 def _apply_skill_rust(state: State, current_tick: int) -> None:
     for skill_name in SKILL_NAMES:
         skill = _get_skill(state, skill_name)
@@ -121,7 +154,8 @@ def _apply_skill_rust(state: State, current_tick: int) -> None:
 def _gain_skill_xp(state: State, skill_name: str, gain: float, current_tick: int) -> float:
     skill = _get_skill(state, skill_name)
     curiosity_mod = 1.0 + (state.player.traits.curiosity / 100.0) * 0.3
-    actual_gain = gain * curiosity_mod
+    health_penalty = _get_health_penalty(state)  # Apply health penalty to skill gains
+    actual_gain = gain * curiosity_mod * health_penalty
     skill.value += actual_gain
     skill.last_tick = current_tick
     aptitude_name = SKILL_TO_APTITUDE[skill_name]
@@ -232,8 +266,54 @@ def _apply_environment(state: State, rng: random.Random) -> None:
     fitness_modifier = (state.player.traits.fitness - 50) * 0.2
     n.energy = max(0, min(100, int(base_energy + fitness_modifier)))
 
+    # Health degradation from extreme needs
+    extreme_needs = []
+    if n.hunger > HEALTH_EXTREME_NEED_THRESHOLD:
+        extreme_needs.append("hunger")
+        n.illness = min(100, n.illness + HEALTH_DEGRADATION_PER_EXTREME_NEED)
+    if n.fatigue > HEALTH_EXTREME_NEED_THRESHOLD:
+        extreme_needs.append("fatigue")
+        n.illness = min(100, n.illness + HEALTH_DEGRADATION_PER_EXTREME_NEED)
+    if n.hygiene > HEALTH_EXTREME_NEED_THRESHOLD:
+        extreme_needs.append("hygiene")
+        n.illness = min(100, n.illness + HEALTH_DEGRADATION_PER_EXTREME_NEED)
+    if n.stress > HEALTH_EXTREME_NEED_THRESHOLD:
+        extreme_needs.append("stress")
+        n.illness = min(100, n.illness + HEALTH_DEGRADATION_PER_EXTREME_NEED * 0.5)  # Stress contributes less
+    if n.warmth < 20:  # Cold causes illness
+        extreme_needs.append("cold")
+        n.illness = min(100, n.illness + HEALTH_DEGRADATION_PER_EXTREME_NEED)
+
+    # Natural recovery from illness and injury
+    if n.illness > 0:
+        stoicism_bonus = state.player.traits.stoicism / 100.0 * 0.5  # Stoicism helps recovery
+        recovery = ILLNESS_RECOVERY_PER_TURN * (1.0 + stoicism_bonus)
+        n.illness = max(0, n.illness - recovery)
+    if n.injury > 0:
+        fitness_bonus = state.player.traits.fitness / 100.0 * 0.3  # Fitness helps injury recovery
+        recovery = INJURY_RECOVERY_PER_TURN * (1.0 + fitness_bonus)
+        n.injury = max(0, n.injury - recovery)
+
+    # Calculate overall health based on illness and injury
+    _calculate_health(state)
+
+    # Log health warnings
+    if extreme_needs:
+        _log(state, "health.degradation", extreme_needs=extreme_needs, illness=int(n.illness), injury=int(n.injury))
+    if n.health < 30:
+        _log(state, "health.critical", health=n.health)
+    elif n.health < 50:
+        _log(state, "health.warning", health=n.health)
+
+    # Random events
     if rng.random() < 0.05:
         _log(state, "building.noise", severity="low")
+
+    # Small chance of minor injury from accidents
+    if rng.random() < 0.02:
+        injury_amount = rng.randint(5, 15)
+        n.injury = min(100, n.injury + injury_amount)
+        _log(state, "health.injury", injury_amount=injury_amount, source="accident")
 
 
 def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
@@ -248,14 +328,15 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
         else:
             # Item effectiveness affects productivity and fatigue
             item_effectiveness = _get_item_effectiveness(desk)
+            health_penalty = _get_health_penalty(state)
             base_earnings = 3500
-            earnings = int(base_earnings * item_effectiveness)
+            earnings = int(base_earnings * item_effectiveness * health_penalty)  # Poor health reduces productivity
 
             state.player.money_pence += earnings
             fatigue_cost = 15
             discipline_mod = 1.0 - (state.player.traits.discipline / 100.0) * 0.2
-            # Better desk reduces fatigue
-            fatigue_cost = int(fatigue_cost * discipline_mod * (2.0 - item_effectiveness))
+            # Better desk reduces fatigue, poor health increases fatigue
+            fatigue_cost = int(fatigue_cost * discipline_mod * (2.0 - item_effectiveness) * (2.0 - health_penalty))
             state.player.needs.fatigue = min(100, state.player.needs.fatigue + fatigue_cost)
             state.player.needs.mood = max(0, state.player.needs.mood - 2)
             state.player.skills["general"] = state.player.skills.get("general", 0) + 1
@@ -421,10 +502,14 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
     elif action_id == "exercise":
         # Base fatigue cost
         fatigue_cost = 20
+        health_penalty = _get_health_penalty(state)
 
         # Fitness trait bonus: -20% fatigue cost if fitness >= 75
         if state.player.traits.fitness >= 75:
             fatigue_cost = int(fatigue_cost * 0.8)
+
+        # Poor health increases fatigue cost
+        fatigue_cost = int(fatigue_cost * (2.0 - health_penalty))
 
         # Apply effects
         state.player.needs.fatigue = min(100, state.player.needs.fatigue + fatigue_cost)
@@ -437,6 +522,54 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
         gain = _gain_skill_xp(state, "reflexivity", 2.5, current_tick)
 
         _log(state, "action.exercise", fatigue_cost=fatigue_cost, skill_gain=round(gain, 2))
+
+    elif action_id == "visit_doctor":
+        # Check if player has enough money
+        if state.player.money_pence < DOCTOR_VISIT_COST:
+            _log(state, "action.failed", action_id="visit_doctor", reason="insufficient_funds")
+        else:
+            # Deduct cost
+            state.player.money_pence -= DOCTOR_VISIT_COST
+
+            # Record initial values for logging
+            initial_illness = state.player.needs.illness
+            initial_injury = state.player.needs.injury
+
+            # Apply treatment
+            state.player.needs.illness = max(0, state.player.needs.illness - DOCTOR_ILLNESS_RECOVERY)
+            state.player.needs.injury = max(0, state.player.needs.injury - DOCTOR_INJURY_RECOVERY)
+
+            # Small fatigue from travel and waiting
+            state.player.needs.fatigue = min(100, state.player.needs.fatigue + 5)
+
+            # Mood improvement from getting treatment
+            state.player.needs.mood = min(100, state.player.needs.mood + 5)
+
+            _log(state, "action.visit_doctor", cost_pence=DOCTOR_VISIT_COST,
+                 illness_before=int(initial_illness), illness_after=int(state.player.needs.illness),
+                 injury_before=int(initial_injury), injury_after=int(state.player.needs.injury))
+
+    elif action_id == "rest":
+        # Rest action for minor recovery - free but takes time
+        initial_illness = state.player.needs.illness
+        initial_injury = state.player.needs.injury
+
+        # Apply recovery
+        stoicism_bonus = state.player.traits.stoicism / 100.0 * 5  # Stoicism helps mental rest
+        state.player.needs.illness = max(0, state.player.needs.illness - REST_ILLNESS_RECOVERY)
+        state.player.needs.injury = max(0, state.player.needs.injury - REST_INJURY_RECOVERY)
+
+        # Reduce fatigue slightly
+        state.player.needs.fatigue = max(0, state.player.needs.fatigue - 10)
+
+        # Reduce stress
+        state.player.needs.stress = max(0, int(state.player.needs.stress - (5 + stoicism_bonus)))
+
+        # Small mood improvement
+        state.player.needs.mood = min(100, state.player.needs.mood + 3)
+
+        _log(state, "action.rest", illness_before=int(initial_illness), illness_after=int(state.player.needs.illness),
+             injury_before=int(initial_injury), injury_after=int(state.player.needs.injury))
 
     elif action_id.startswith("repair_"):
         # Extract item_id from action_id (e.g., "repair_bed_basic" -> "bed_basic")
