@@ -152,6 +152,11 @@ class WebSocketAdapter(VisualizationAdapter):
 
         elif msg_type == "execute_action":
             action_id = data.get("action_id")
+            if action_id is None:
+                return json.dumps({
+                    "type": "error",
+                    "message": "Missing required field: action_id",
+                })
             rng_seed = data.get("rng_seed")
             result = self.api.execute_action(action_id, rng_seed)
             return json.dumps({

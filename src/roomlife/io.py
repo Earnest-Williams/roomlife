@@ -28,7 +28,13 @@ def _load_skills_detailed(raw: dict) -> Dict[str, Skill]:
     """Load all skills from dict (optimized approach)."""
     # Check if new format (skills_detailed dict) exists
     if "skills_detailed" in raw:
-        return {name: Skill(**data) for name, data in raw["skills_detailed"].items()}
+        # Initialize all skills with defaults first
+        skills = {skill_name: Skill() for skill_name in SKILL_NAMES}
+        # Then update with loaded values (this ensures all skills exist)
+        for name, data in raw["skills_detailed"].items():
+            if name in SKILL_NAMES:  # Only load known skills
+                skills[name] = Skill(**data)
+        return skills
 
     # Backward compatibility: load from individual fields
     skills = {}
