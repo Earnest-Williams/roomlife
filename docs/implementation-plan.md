@@ -31,6 +31,11 @@ This plan outlines the phased development strategy for RoomLife, prioritizing fe
 - No social gameplay despite relationship tracking
 - No consequences for extreme needs
 
+### Save Migration Strategy
+- **Use defaults in loading logic** for newly added fields (e.g., `health=100`) to keep legacy saves playable, aligning with the existing schema versioning/backward compatibility guidance above.
+- **Increment `schema_version`** only for breaking structure changes that cannot be safely defaulted.
+- **Provide targeted data migrations** when expanding the world (new spaces/items) so older saves can be upgraded to the new content set without losing progress.
+
 ---
 
 ## Phase 1: MVP Improvements (Immediate Gameplay Impact)
