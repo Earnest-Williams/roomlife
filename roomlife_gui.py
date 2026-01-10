@@ -6,9 +6,6 @@ A graphical user interface for the RoomLife simulation API.
 
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox, filedialog
-import threading
-from typing import Optional
-from pathlib import Path
 
 from roomlife.engine import new_game
 from roomlife.api_service import RoomLifeAPI
