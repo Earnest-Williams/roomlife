@@ -168,6 +168,7 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
         state.player.skills["general"] = state.player.skills.get("general", 0) + 1
         gain = _gain_skill_xp(state, "technical_literacy", 2.0, current_tick)
         _track_habit(state, "discipline", 10)
+        _track_habit(state, "confidence", 8)
         _log(state, "action.work", earned_pence=3500, skill_gain=round(gain, 2))
 
     elif action_id == "study":
