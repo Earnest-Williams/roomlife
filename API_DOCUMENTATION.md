@@ -45,6 +45,57 @@ The API consists of three main layers:
 
 ## Quick Start
 
+### Launcher Script
+
+The easiest way to get started is using the launcher script:
+
+```bash
+./launch.sh
+```
+
+This provides an interactive menu to launch:
+- **GUI Application**: Tkinter-based graphical interface
+- **REST API Server**: Flask-based REST endpoints
+- **CLI Demo**: Interactive command-line interface
+- **Basic Examples**: Simple API usage demonstrations
+
+Or launch directly:
+```bash
+./launch.sh gui      # Launch GUI
+./launch.sh rest     # Launch REST server
+./launch.sh cli      # Launch CLI demo
+./launch.sh example  # Run basic example
+```
+
+### GUI Application
+
+The Tkinter GUI provides a complete visualization interface:
+
+```bash
+python3 roomlife_gui.py
+```
+
+**Features:**
+- Real-time state visualization
+  - Needs tracking (hunger, fatigue, warmth, hygiene, mood, stress, energy)
+  - Traits display (discipline, confidence, empathy, fitness, etc.)
+  - Utilities status (power, heat, water)
+- Interactive action buttons for all available actions
+- Event log showing game events and outcomes
+- Save/Load functionality with file dialogs
+- Location and time tracking
+- Money and utilities payment status
+
+**GUI Components:**
+- **Status Panel**: Displays day, time, location, money, and utilities status
+- **Needs Panel**: Progress bars for all player needs
+- **Traits Panel**: Progress bars for all character traits
+- **Utilities Panel**: Status of power, heat, and water
+- **Actions Panel**: Dynamic buttons for available actions
+- **Event Log**: Scrolling log of all game events and action results
+
+The GUI uses the event subscription system to automatically update when state changes occur.
+
 ### Basic Usage
 
 ```python
@@ -539,6 +590,11 @@ See the `examples/` directory for complete working examples:
 - `api_rest_server.py`: REST API server with Flask
 - `api_websocket_server.py`: WebSocket server for real-time updates
 - `api_cli_demo.py`: Interactive CLI using the API
+- `api_event_streaming.py`: Event subscription examples
+
+Additionally:
+- `roomlife_gui.py`: Full-featured Tkinter GUI application (in root directory)
+- `launch.sh`: Launcher script to coordinate all components (in root directory)
 
 ## Contributing
 
