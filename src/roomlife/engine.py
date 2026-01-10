@@ -313,7 +313,14 @@ def _apply_environment(state: State, rng: random.Random) -> None:
     if rng.random() < 0.02:
         injury_amount = rng.randint(5, 15)
         n.injury = min(100, n.injury + injury_amount)
+        # Recalculate health to reflect the new injury immediately
+        _calculate_health(state)
         _log(state, "health.injury", injury_amount=injury_amount, source="accident")
+        # Log additional warning if injury pushed health below thresholds
+        if n.health < 30:
+            _log(state, "health.critical", health=n.health)
+        elif n.health < 50:
+            _log(state, "health.warning", health=n.health)
 
 
 def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
