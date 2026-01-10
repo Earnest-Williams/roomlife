@@ -124,6 +124,7 @@ This plan outlines the phased development strategy for RoomLife, prioritizing fe
 - Use `state.world.location` to gate location-specific actions
 - Check `state.utilities.water` for shower
 - Query items for cook action
+- If 1.2 is not yet implemented, allow `cook_basic_meal` to fall back to a no-item-required version (temporary behavior) so Phase 1.3 can land first without blocking on item gating.
 
 **Files to modify:**
 - `src/roomlife/engine.py`: Add 4 new action handlers
@@ -436,8 +437,8 @@ This plan outlines the phased development strategy for RoomLife, prioritizing fe
 ```
 Phase 1: MVP (can be done in parallel)
 ├── 1.1 Movement (no dependencies)
-├── 1.2 Item Interactions (no dependencies)
-└── 1.3 Essential Actions (depends on 1.1 for location checks)
+├── 1.2 Item Interactions (no dependencies; optional prerequisite for item-gated 1.3 actions)
+└── 1.3 Essential Actions (depends on 1.1 for location checks; can ship before 1.2 if item-gated actions temporarily fall back)
 
 Phase 2: Core Systems
 ├── 2.1 Health System (depends on Phase 1 complete)
@@ -467,10 +468,12 @@ Phase 4: Polish
 2. **Essential Actions (1.3)** - 4-6 hours
    - Biggest immediate impact on fun
    - Creates daily routine gameplay loop
+   - Can land before 1.2 with temporary fallback behavior for item-gated actions
 
 3. **Item Interactions (1.2)** - 3-4 hours
    - Makes existing items matter
    - Adds strategic location choices
+   - Should precede 1.3 if you want strict item gating from day one
 
 4. **Health & Consequences (2.1)** - 3-4 hours
    - Adds stakes to gameplay
