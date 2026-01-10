@@ -238,7 +238,7 @@ UI_FEATURES = {
 
 ---
 
-### 1.3 Essential Daily Actions (Priority: HIGH) ⏱️ 4-6 hours
+### 1.3 Essential Daily Actions (Priority: HIGH) ⏱️ 4-6 hours ✅ COMPLETED
 
 **Why Third:** Fills critical gameplay gaps, utilizes underused skills.
 
@@ -327,6 +327,14 @@ UI_FEATURES = {
 - ✓ All actions appear in view only when requirements met (location, items, utilities)
 - ✓ All actions advance time by 1 time slice
 - ✓ All stat changes apply immediately in same turn
+
+**Implementation Notes:**
+- All four essential actions implemented in `src/roomlife/engine.py`
+- `shower`: Requires water utility and bath_001 location, applies hygiene +40, mood +5, warmth -10 (if no heat)
+- `cook_basic_meal`: Requires 300 pence and kettle/stove item at current location, reduces hunger by 35 (38.5 with creativity trait ≥75), mood +3, nutrition skill +1.5
+- `clean_room`: Can be performed anywhere, hygiene +5, mood +8, stress -3, maintenance skill +2.0, discipline habit +10
+- `exercise`: Can be performed anywhere, fatigue +20 (16 with fitness ≥75), hunger +5, mood +10, stress -5, reflexivity skill +2.5
+- All actions include proper error handling with logged failure events
 
 ---
 

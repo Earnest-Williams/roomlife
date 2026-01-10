@@ -222,6 +222,95 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
         state.player.utilities_paid = False
         _log(state, "bills.skipped")
 
+    elif action_id == "shower":
+        # Check if water is available
+        if not state.utilities.water:
+            _log(state, "action.failed", action_id="shower", reason="no_water")
+            return
+
+        # Check if in bathroom
+        if state.world.location != "bath_001":
+            _log(state, "action.failed", action_id="shower", reason="wrong_location")
+            return
+
+        # Apply hygiene and mood improvements
+        state.player.needs.hygiene = max(0, state.player.needs.hygiene - 40)
+        state.player.needs.mood = min(100, state.player.needs.mood + 5)
+
+        # Apply warmth penalty if no heat
+        if not state.utilities.heat:
+            state.player.needs.warmth = max(0, state.player.needs.warmth - 10)
+
+        _log(state, "action.shower", hygiene_improved=40)
+
+    elif action_id == "cook_basic_meal":
+        # Check if player has enough money
+        cost = 300
+        if state.player.money_pence < cost:
+            _log(state, "action.failed", action_id="cook_basic_meal", reason="insufficient_funds")
+            return
+
+        # Check for kettle or stove (checking current location items)
+        items_here = state.get_items_at(state.world.location)
+        has_cooking_item = any(item.item_id in ["kettle", "stove"] for item in items_here)
+
+        if not has_cooking_item:
+            _log(state, "action.failed", action_id="cook_basic_meal", reason="no_cooking_item")
+            return
+
+        # Deduct cost
+        state.player.money_pence -= cost
+
+        # Base hunger reduction
+        hunger_reduction = 35
+
+        # Creativity trait bonus: +10% hunger reduction if creativity >= 75
+        if state.player.traits.creativity >= 75:
+            hunger_reduction = int(hunger_reduction * 1.1)
+
+        # Apply effects
+        state.player.needs.hunger = max(0, state.player.needs.hunger - hunger_reduction)
+        state.player.needs.mood = min(100, state.player.needs.mood + 3)
+
+        # Gain nutrition skill
+        gain = _gain_skill_xp(state, "nutrition", 1.5, current_tick)
+
+        _log(state, "action.cook_basic_meal", cost_pence=cost, hunger_reduced=hunger_reduction, skill_gain=round(gain, 2))
+
+    elif action_id == "clean_room":
+        # Apply effects
+        state.player.needs.hygiene = max(0, state.player.needs.hygiene - 5)
+        state.player.needs.mood = min(100, state.player.needs.mood + 8)
+        state.player.needs.stress = max(0, state.player.needs.stress - 3)
+
+        # Gain maintenance skill
+        gain = _gain_skill_xp(state, "maintenance", 2.0, current_tick)
+
+        # Track discipline habit
+        _track_habit(state, "discipline", 10)
+
+        _log(state, "action.clean_room", skill_gain=round(gain, 2))
+
+    elif action_id == "exercise":
+        # Base fatigue cost
+        fatigue_cost = 20
+
+        # Fitness trait bonus: -20% fatigue cost if fitness >= 75
+        if state.player.traits.fitness >= 75:
+            fatigue_cost = int(fatigue_cost * 0.8)
+
+        # Apply effects
+        state.player.needs.fatigue = min(100, state.player.needs.fatigue + fatigue_cost)
+        state.player.needs.hunger = min(100, state.player.needs.hunger + 5)
+        state.player.needs.mood = min(100, state.player.needs.mood + 10)
+        state.player.needs.stress = max(0, state.player.needs.stress - 5)
+        # Energy will be recalculated in _apply_environment based on fatigue and fitness
+
+        # Gain reflexivity skill
+        gain = _gain_skill_xp(state, "reflexivity", 2.5, current_tick)
+
+        _log(state, "action.exercise", fatigue_cost=fatigue_cost, skill_gain=round(gain, 2))
+
     else:
         _log(state, "action.unknown", action_id=action_id)
 
