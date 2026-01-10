@@ -19,6 +19,7 @@ class ActionCategory(str, Enum):
     HEALTH = "health"
     MOVEMENT = "movement"
     SOCIAL = "social"
+    SHOPPING = "shopping"
     OTHER = "other"
 
 

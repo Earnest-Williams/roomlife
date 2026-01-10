@@ -1,28 +1,276 @@
 items:
+  # === BEDS (Sleep) ===
   - id: bed_basic
     name: Basic bed
     tags: [sleep]
+    price: 0  # Starter item
+    quality: 1.0
+    description: A simple single bed. Gets the job done.
+
+  - id: bed_standard
+    name: Standard bed
+    tags: [sleep]
+    price: 2500  # £25
+    quality: 1.2
+    description: A comfortable double bed with decent mattress.
+
+  - id: bed_premium
+    name: Premium bed
+    tags: [sleep]
+    price: 6000  # £60
+    quality: 1.4
+    description: High-quality bed with memory foam mattress.
+
+  - id: bed_luxury
+    name: Luxury bed
+    tags: [sleep]
+    price: 15000  # £150
+    quality: 1.6
+    description: King-size bed with orthopedic mattress and premium bedding.
+
+  # === DESKS (Work, Study) ===
   - id: desk_worn
     name: Worn desk
     tags: [study, work]
-  - id: kettle
-    name: Kettle
-    tags: [cook]
+    price: 0  # Starter item
+    quality: 0.8
+    description: An old, worn desk. Better than nothing.
+
+  - id: desk_basic
+    name: Basic desk
+    tags: [study, work]
+    price: 3000  # £30
+    quality: 1.0
+    description: Simple functional desk with drawers.
+
+  - id: desk_standard
+    name: Standard desk
+    tags: [study, work]
+    price: 7000  # £70
+    quality: 1.3
+    description: Spacious desk with cable management and storage.
+
+  - id: desk_premium
+    name: Premium desk
+    tags: [study, work]
+    price: 15000  # £150
+    quality: 1.5
+    description: Executive desk with premium finish and ergonomic design.
+
+  # === CHAIRS (Work, Study) ===
   - id: chair_basic
     name: Basic chair
     tags: [study, work]
+    price: 1500  # £15
+    quality: 1.0
+    description: Simple wooden chair.
+
+  - id: chair_ergonomic
+    name: Ergonomic chair
+    tags: [study, work]
+    price: 8000  # £80
+    quality: 1.4
+    description: Adjustable office chair with lumbar support.
+
+  - id: chair_luxury
+    name: Luxury office chair
+    tags: [study, work]
+    price: 20000  # £200
+    quality: 1.6
+    description: High-end ergonomic chair with full adjustability.
+
+  # === COOKING (Cook) ===
+  - id: kettle
+    name: Kettle
+    tags: [cook]
+    price: 0  # Starter item
+    quality: 1.0
+    description: Basic electric kettle for hot drinks.
+
+  - id: microwave
+    name: Microwave
+    tags: [cook]
+    price: 5000  # £50
+    quality: 1.2
+    description: Convenient microwave oven for quick meals.
+
+  - id: stove_basic
+    name: Basic stove
+    tags: [cook]
+    price: 10000  # £100
+    quality: 1.3
+    description: Two-burner electric stove for proper cooking.
+
+  - id: stove_premium
+    name: Premium stove
+    tags: [cook]
+    price: 25000  # £250
+    quality: 1.5
+    description: Four-burner gas stove with oven.
+
+  - id: fridge
+    name: Refrigerator
+    tags: [cook]
+    price: 15000  # £150
+    quality: 1.3
+    description: Full-size fridge to keep food fresh longer.
+
+  # === LIGHTING (Work, Study) ===
   - id: lamp_desk
     name: Desk lamp
     tags: [study, work]
+    price: 1000  # £10
+    quality: 1.0
+    description: Basic desk lamp with adjustable arm.
+
+  - id: lamp_floor
+    name: Floor lamp
+    tags: [study, work]
+    price: 4000  # £40
+    quality: 1.2
+    description: Tall floor lamp providing ambient lighting.
+
+  - id: lamp_premium
+    name: Premium lighting
+    tags: [study, work]
+    price: 10000  # £100
+    quality: 1.4
+    description: Smart LED lighting system with adjustable color temperature.
+
+  # === COMFORT (Rest, Mood) ===
+  - id: sofa_basic
+    name: Basic sofa
+    tags: [rest, comfort]
+    price: 20000  # £200
+    quality: 1.3
+    description: Comfortable two-seater sofa for relaxing.
+
+  - id: sofa_premium
+    name: Premium sofa
+    tags: [rest, comfort]
+    price: 50000  # £500
+    quality: 1.6
+    description: Luxurious sectional sofa with reclining features.
+
+  - id: tv_basic
+    name: Basic TV
+    tags: [entertainment, rest]
+    price: 15000  # £150
+    quality: 1.2
+    description: 32-inch HD television for entertainment.
+
+  - id: tv_premium
+    name: Premium TV
+    tags: [entertainment, rest]
+    price: 40000  # £400
+    quality: 1.5
+    description: 55-inch 4K smart TV with streaming capabilities.
+
+  - id: rug
+    name: Area rug
+    tags: [comfort, decoration]
+    price: 3000  # £30
+    quality: 1.1
+    description: Soft area rug that makes the room more comfortable.
+
+  - id: plant
+    name: Potted plant
+    tags: [decoration, mood]
+    price: 2000  # £20
+    quality: 1.1
+    description: Living plant that brightens up the space.
+
+  - id: painting
+    name: Wall painting
+    tags: [decoration, mood]
+    price: 5000  # £50
+    quality: 1.1
+    description: Decorative painting to personalize your space.
+
+  # === HYGIENE (Hygiene) ===
   - id: towel
     name: Towel
     tags: [hygiene]
-  - id: cleaning_supplies
-    name: Cleaning supplies
-    tags: [clean]
+    price: 500  # £5
+    quality: 1.0
+    description: Basic bath towel.
+
+  - id: towel_premium
+    name: Premium towel set
+    tags: [hygiene]
+    price: 2000  # £20
+    quality: 1.3
+    description: Soft, absorbent luxury towels.
+
+  - id: bath_mat
+    name: Bath mat
+    tags: [hygiene]
+    price: 1500  # £15
+    quality: 1.1
+    description: Non-slip bath mat for comfort and safety.
+
+  # === EXERCISE (Exercise) ===
   - id: yoga_mat
     name: Yoga mat
     tags: [exercise]
+    price: 1000  # £10
+    quality: 1.0
+    description: Basic yoga mat for floor exercises.
+
+  - id: dumbbells
+    name: Dumbbell set
+    tags: [exercise]
+    price: 4000  # £40
+    quality: 1.2
+    description: Adjustable dumbbells for strength training.
+
+  - id: exercise_bike
+    name: Exercise bike
+    tags: [exercise]
+    price: 20000  # £200
+    quality: 1.5
+    description: Stationary bike for cardio workouts at home.
+
+  # === CLEANING (Clean) ===
+  - id: cleaning_supplies
+    name: Cleaning supplies
+    tags: [clean]
+    price: 800  # £8
+    quality: 1.0
+    description: Basic cleaning products and cloths.
+
+  - id: vacuum
+    name: Vacuum cleaner
+    tags: [clean]
+    price: 8000  # £80
+    quality: 1.3
+    description: Powerful vacuum for thorough cleaning.
+
+  # === STUDY (Study) ===
   - id: bookshelf
     name: Small bookshelf
     tags: [study]
+    price: 3000  # £30
+    quality: 1.0
+    description: Compact bookshelf for storage.
+
+  - id: bookshelf_large
+    name: Large bookshelf
+    tags: [study]
+    price: 10000  # £100
+    quality: 1.2
+    description: Spacious bookshelf with multiple shelves.
+
+  - id: computer
+    name: Computer
+    tags: [study, work, entertainment]
+    price: 60000  # £600
+    quality: 1.5
+    description: Mid-range desktop computer for work and study.
+
+  - id: computer_premium
+    name: Premium computer
+    tags: [study, work, entertainment]
+    price: 120000  # £1200
+    quality: 1.8
+    description: High-performance computer with top specifications.

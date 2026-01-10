@@ -61,6 +61,7 @@ class Item:
     condition_value: int = 80   # 0-100 numeric condition
     placed_in: str = "room_001"
     slot: str = "floor"         # logical slot, not coordinates
+    quality: float = 1.0        # quality multiplier (0.8-1.8), affects effectiveness
 
 
 @dataclass
