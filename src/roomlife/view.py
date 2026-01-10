@@ -2,23 +2,21 @@ from __future__ import annotations
 
 from typing import Dict
 
+from .constants import SKILL_NAMES
 from .models import State
 
 
 def build_view_model(state: State) -> Dict:
+    """Build view-model from state (optimized with dict-based skill access)."""
     n = state.player.needs
     loc = state.world.location
     space = state.spaces.get(loc)
     p = state.player
 
+    # Build active skills list using dict access (faster than getattr)
     active_skills = []
-    skill_names = [
-        "technical_literacy", "analysis", "resource_management", "presence",
-        "articulation", "persuasion", "nutrition", "maintenance", "ergonomics",
-        "reflexivity", "introspection", "focus",
-    ]
-    for skill_name in skill_names:
-        skill = getattr(p, skill_name)
+    for skill_name in SKILL_NAMES:
+        skill = p.skills_detailed[skill_name]
         if skill.value > 0:
             active_skills.append({
                 "name": skill_name.replace("_", " ").title(),
@@ -64,10 +62,10 @@ def build_view_model(state: State) -> Dict:
             "water": state.utilities.water,
         },
         "location": {"space_id": loc, "space_name": space.name if space else loc},
+        # Use optimized spatial query instead of filtering all items
         "items_here": [
             {"item_id": it.item_id, "condition": it.condition, "slot": it.slot}
-            for it in state.items
-            if it.placed_in == loc
+            for it in state.get_items_at(loc)
         ],
         "recent_events": state.event_log[-6:],
         "actions_hint": [

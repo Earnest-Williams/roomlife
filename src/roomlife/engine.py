@@ -4,47 +4,27 @@ import random
 from dataclasses import asdict
 from typing import Dict, List, Tuple
 
+from .constants import (
+    MAX_EVENT_LOG,
+    SKILL_NAMES,
+    SKILL_TO_APTITUDE,
+    TIME_SLICES,
+    TRAIT_DRIFT_CONFIGS,
+    TRAIT_DRIFT_THRESHOLD,
+)
 from .models import Item, Skill, Space, State
-
-TIME_SLICES = ["morning", "afternoon", "evening", "night"]
-
-SKILL_NAMES = [
-    "technical_literacy",
-    "analysis",
-    "resource_management",
-    "presence",
-    "articulation",
-    "persuasion",
-    "nutrition",
-    "maintenance",
-    "ergonomics",
-    "reflexivity",
-    "introspection",
-    "focus",
-]
-
-SKILL_TO_APTITUDE = {
-    "technical_literacy": "logic_systems",
-    "analysis": "logic_systems",
-    "resource_management": "logic_systems",
-    "presence": "social_grace",
-    "articulation": "social_grace",
-    "persuasion": "social_grace",
-    "nutrition": "domesticity",
-    "maintenance": "domesticity",
-    "ergonomics": "domesticity",
-    "reflexivity": "vitality",
-    "introspection": "vitality",
-    "focus": "vitality",
-}
 
 
 def _log(state: State, event_id: str, **params: object) -> None:
     state.event_log.append({"event_id": event_id, "params": params})
+    # Limit event log size to prevent unbounded growth
+    if len(state.event_log) > MAX_EVENT_LOG:
+        state.event_log = state.event_log[-MAX_EVENT_LOG:]
 
 
 def _get_skill(state: State, skill_name: str) -> Skill:
-    return getattr(state.player, skill_name)
+    """Get a skill by name from the player's skill dictionary."""
+    return state.player.skills_detailed[skill_name]
 
 
 def _apply_skill_rust(state: State, current_tick: int) -> None:
@@ -78,19 +58,20 @@ def _track_habit(state: State, habit_name: str, amount: int) -> None:
 
 
 def _apply_trait_drift(state: State) -> List[str]:
+    """Apply trait changes based on habit accumulation (optimized loop-based approach)."""
     messages = []
-    if state.player.habit_tracker.get("discipline", 0) > 80:
-        state.player.traits.discipline = min(100, state.player.traits.discipline + 1)
-        messages.append("Your surroundings feel more orderly. Discipline is rising.")
-        state.player.habit_tracker["discipline"] = 0
-    if state.player.habit_tracker.get("confidence", 0) > 80:
-        state.player.traits.confidence = min(100, state.player.traits.confidence + 1)
-        messages.append("You feel more self-assured. Confidence is rising.")
-        state.player.habit_tracker["confidence"] = 0
-    if state.player.habit_tracker.get("frugality", 0) > 80:
-        state.player.traits.frugality = min(100, state.player.traits.frugality + 1)
-        messages.append("You're becoming more mindful of spending. Frugality is rising.")
-        state.player.habit_tracker["frugality"] = 0
+    tracker = state.player.habit_tracker
+    traits = state.player.traits
+
+    for config in TRAIT_DRIFT_CONFIGS:
+        habit_name = config["habit"]
+        trait_name = config["trait"]
+        if tracker.get(habit_name, 0) > TRAIT_DRIFT_THRESHOLD:
+            current_trait = getattr(traits, trait_name)
+            setattr(traits, trait_name, min(100, current_trait + 1))
+            messages.append(config["message"])
+            tracker[habit_name] = 0
+
     return messages
 
 
@@ -177,7 +158,7 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
 
     elif action_id == "study":
         fatigue_base = 10
-        ergonomics_bonus = state.player.ergonomics.value * 0.1
+        ergonomics_bonus = _get_skill(state, "ergonomics").value * 0.1
         fatigue_cost = int(fatigue_base * (1.0 - ergonomics_bonus))
         state.player.needs.fatigue = min(100, state.player.needs.fatigue + fatigue_cost)
         state.player.needs.mood = min(100, state.player.needs.mood + 1)
@@ -192,13 +173,13 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
         total_recovery = int(base_recovery + fitness_bonus)
         state.player.needs.fatigue = max(0, state.player.needs.fatigue - total_recovery)
         state.player.needs.mood = min(100, state.player.needs.mood + 3)
-        introspection_stress_reduction = state.player.introspection.value * 0.5
+        introspection_stress_reduction = _get_skill(state, "introspection").value * 0.5
         state.player.needs.stress = max(0, int(state.player.needs.stress - introspection_stress_reduction))
         _log(state, "action.sleep", fatigue_recovered=total_recovery)
 
     elif action_id == "eat_charity_rice":
         base_hunger_reduction = 25
-        nutrition_bonus = state.player.nutrition.value * 0.2
+        nutrition_bonus = _get_skill(state, "nutrition").value * 0.2
         total_reduction = int(base_hunger_reduction + nutrition_bonus)
         state.player.needs.hunger = max(0, state.player.needs.hunger - total_reduction)
         state.player.needs.mood = max(0, state.player.needs.mood - 1)
@@ -206,7 +187,7 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
 
     elif action_id == "pay_utilities":
         base_cost = 2000
-        resource_mgmt_discount = state.player.resource_management.value * 10
+        resource_mgmt_discount = _get_skill(state, "resource_management").value * 10
         frugality_discount = state.player.traits.frugality / 100.0 * 200
         cost = int(base_cost - resource_mgmt_discount - frugality_discount)
         if state.player.money_pence >= cost:
