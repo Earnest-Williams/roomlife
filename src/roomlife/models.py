@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List
 
+from .constants import SKILL_NAMES
+
 
 @dataclass
 class Utilities:
@@ -67,6 +69,11 @@ class Space:
     connections: List[str] = field(default_factory=list)
 
 
+def _default_skills_detailed() -> Dict[str, Skill]:
+    """Create default skills dictionary."""
+    return {skill_name: Skill() for skill_name in SKILL_NAMES}
+
+
 @dataclass
 class Player:
     money_pence: int = 5000
@@ -76,18 +83,7 @@ class Player:
     relationships: Dict[str, int] = field(default_factory=dict)
     aptitudes: Aptitudes = field(default_factory=Aptitudes)
     traits: Traits = field(default_factory=Traits)
-    technical_literacy: Skill = field(default_factory=Skill)
-    analysis: Skill = field(default_factory=Skill)
-    resource_management: Skill = field(default_factory=Skill)
-    presence: Skill = field(default_factory=Skill)
-    articulation: Skill = field(default_factory=Skill)
-    persuasion: Skill = field(default_factory=Skill)
-    nutrition: Skill = field(default_factory=Skill)
-    maintenance: Skill = field(default_factory=Skill)
-    ergonomics: Skill = field(default_factory=Skill)
-    reflexivity: Skill = field(default_factory=Skill)
-    introspection: Skill = field(default_factory=Skill)
-    focus: Skill = field(default_factory=Skill)
+    skills_detailed: Dict[str, Skill] = field(default_factory=_default_skills_detailed)
     habit_tracker: Dict[str, int] = field(default_factory=dict)
 
 
@@ -107,3 +103,7 @@ class State:
     spaces: Dict[str, Space] = field(default_factory=dict)
     items: List[Item] = field(default_factory=list)
     event_log: List[dict] = field(default_factory=list)
+
+    def get_items_at(self, location: str) -> List[Item]:
+        """Get all items at a specific location (optimized spatial query)."""
+        return [item for item in self.items if item.placed_in == location]
