@@ -1,19 +1,22 @@
 from __future__ import annotations
 
-import json
 from dataclasses import asdict
 from pathlib import Path
+
+import yaml
 
 from .models import Item, Needs, Player, Space, State, Utilities, World
 
 
 def save_state(state: State, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(asdict(state), indent=2, sort_keys=True), encoding="utf-8")
+    path.write_text(
+        yaml.safe_dump(asdict(state), default_flow_style=False, sort_keys=True), encoding="utf-8"
+    )
 
 
 def load_state(path: Path) -> State:
-    raw = json.loads(path.read_text(encoding="utf-8"))
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
 
     s = State(schema_version=raw["schema_version"])
     s.world = World(**raw["world"])

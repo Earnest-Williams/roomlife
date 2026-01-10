@@ -12,7 +12,7 @@ from .io import load_state, save_state
 from .view import build_view_model
 
 app = typer.Typer(add_completion=False)
-DEFAULT_SAVE = Path("saves/save_001.json")
+DEFAULT_SAVE = Path("saves/save_001.yaml")
 
 
 def _render_status(vm: dict) -> None:
