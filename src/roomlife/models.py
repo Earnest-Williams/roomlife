@@ -22,6 +22,9 @@ class Needs:
     mood: int = 60       # 0..100
     stress: int = 0      # 0..100 (higher = more stressed)
     energy: int = 80     # 0..100 (affected by Fitness trait)
+    health: int = 100    # 0..100 (higher = healthier)
+    illness: int = 0     # 0..100 (higher = more ill)
+    injury: int = 0      # 0..100 (higher = more injured)
 
 
 @dataclass

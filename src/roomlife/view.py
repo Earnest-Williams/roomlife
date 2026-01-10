@@ -35,6 +35,8 @@ def build_view_model(state: State) -> Dict:
         {"id": "cook_basic_meal", "label": "Cook basic meal"},
         {"id": "clean_room", "label": "Clean room"},
         {"id": "exercise", "label": "Exercise"},
+        {"id": "rest", "label": "Rest and recover"},
+        {"id": "visit_doctor", "label": "Visit doctor"},
     ]
 
     # Add movement actions based on current location connections
@@ -60,6 +62,9 @@ def build_view_model(state: State) -> Dict:
                 "mood": n.mood,
                 "stress": n.stress,
                 "energy": n.energy,
+                "health": n.health,
+                "illness": n.illness,
+                "injury": n.injury,
             },
             "skills": dict(state.player.skills),
             "active_skills": active_skills,

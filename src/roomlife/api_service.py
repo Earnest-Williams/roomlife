@@ -293,7 +293,8 @@ class RoomLifeAPI:
         # List of known non-movement actions
         known_actions = {
             "work", "study", "sleep", "eat_charity_rice", "cook_basic_meal",
-            "shower", "pay_utilities", "skip_utilities", "clean_room", "exercise"
+            "shower", "pay_utilities", "skip_utilities", "clean_room", "exercise",
+            "rest", "visit_doctor"
         }
 
         # Check if action is known
@@ -384,6 +385,18 @@ class RoomLifeAPI:
                     action_id=action_id,
                     reason="Need bed to sleep",
                     missing_requirements=["bed"],
+                )
+
+        elif action_id == "visit_doctor":
+            # Check if player has enough money
+            from .constants import DOCTOR_VISIT_COST
+            if self.state.player.money_pence < DOCTOR_VISIT_COST:
+                missing.append(f"need {DOCTOR_VISIT_COST}p (have {self.state.player.money_pence}p)")
+                return ActionValidation(
+                    valid=False,
+                    action_id=action_id,
+                    reason="Insufficient funds",
+                    missing_requirements=missing,
                 )
 
         return ActionValidation(valid=True, action_id=action_id)
@@ -648,6 +661,35 @@ class RoomLifeAPI:
                     "stress": "-5",
                     "skill": "reflexivity +2.5",
                 },
+            ),
+            ActionMetadata(
+                action_id="rest",
+                display_name="Rest and Recover",
+                description="Rest to recover from illness and injury",
+                category=ActionCategory.HEALTH,
+                requirements={},
+                effects={
+                    "illness": "-10",
+                    "injury": "-5",
+                    "fatigue": "-10",
+                    "stress": "-5 (stoicism adjusted)",
+                    "mood": "+3",
+                },
+            ),
+            ActionMetadata(
+                action_id="visit_doctor",
+                display_name="Visit Doctor",
+                description="Visit the doctor for professional medical treatment",
+                category=ActionCategory.HEALTH,
+                requirements={"money": 5000},
+                effects={
+                    "illness": "-40",
+                    "injury": "-20",
+                    "fatigue": "+5",
+                    "mood": "+5",
+                    "money": "-5000p",
+                },
+                cost_pence=5000,
             ),
         ]
 
