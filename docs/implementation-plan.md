@@ -11,6 +11,17 @@ This plan outlines the phased development strategy for RoomLife, prioritizing fe
 
 **Total estimated effort:** 56-74 hours for complete implementation
 
+### Acceptance Criteria Framework
+
+Each feature in this plan includes a dedicated **Acceptance Criteria** section with:
+- ✓ **Measurable thresholds**: Exact values for stat changes, costs, and effects
+- ✓ **Testable conditions**: Specific scenarios that must pass/fail correctly
+- ✓ **Verifiable behavior**: Clear success/failure states for each feature
+- ✓ **Edge cases**: Boundary conditions and error handling requirements
+- ✓ **Integration points**: How features interact with existing systems
+
+These criteria enable precise QA, automated testing, and clear definition of "done" for each feature.
+
 ---
 
 ## Architecture Analysis
@@ -60,6 +71,16 @@ This plan outlines the phased development strategy for RoomLife, prioritizing fe
 
 **Backward Compatibility:** ✅ Full - just adds new action, doesn't change state structure.
 
+**Acceptance Criteria:**
+- ✓ `move <location_id>` action successfully changes `state.world.location`
+- ✓ Movement validates against `space.connections` list - invalid moves rejected with error message
+- ✓ Each movement costs exactly +2 fatigue
+- ✓ Each movement advances time by exactly 1 time slice
+- ✓ View displays list of available exits from current location
+- ✓ Attempting to move to a non-connected space returns error, does not change location
+- ✓ Movement works from any starting location in existing save files
+- ✓ Can chain movements: move to A, then A to B, then B to C successfully
+
 ---
 
 ### 1.2 Basic Item Interactions (Priority: HIGHEST) ⏱️ 3-4 hours
@@ -81,6 +102,19 @@ This plan outlines the phased development strategy for RoomLife, prioritizing fe
 - `src/roomlife/view.py`: Show which items enable which actions
 
 **Backward Compatibility:** ✅ Full - existing saves work, items just start affecting actions.
+
+**Acceptance Criteria:**
+- ✓ `_get_usable_items()` returns only items at player's current location
+- ✓ `_get_usable_items()` filters items by tag (e.g., tag="sleep" returns only sleep-tagged items)
+- ✓ `sleep` action without "sleep" tag item costs +10 additional fatigue
+- ✓ `study` action without "study" tag item reduces skill gain by exactly -1 point
+- ✓ `work_from_home` action requires item with "work" tag, fails if not present
+- ✓ Item degradation follows exact sequence: pristine → used → worn → broken
+- ✓ Each use of an item triggers degradation check
+- ✓ Maintenance skill level ≥ 50 reduces degradation probability by 50%
+- ✓ Broken items do not count as usable for action requirements
+- ✓ View shows which items enable/enhance specific actions at current location
+- ✓ Existing save files with pristine items load correctly and degrade normally
 
 ---
 
@@ -133,6 +167,47 @@ This plan outlines the phased development strategy for RoomLife, prioritizing fe
 
 **Backward Compatibility:** ✅ Full - just adds new actions.
 
+**Acceptance Criteria:**
+
+**shower action:**
+- ✓ Increases hygiene by exactly +40
+- ✓ Increases mood by exactly +5
+- ✓ Decreases warmth by exactly -10 (only when heat is unavailable)
+- ✓ Only available in location "bath_001"
+- ✓ Fails if `state.utilities.water` is False with appropriate error message
+- ✓ No skill gains (basic need action)
+
+**cook_basic_meal action:**
+- ✓ Decreases hunger by exactly -35
+- ✓ Increases mood by exactly +3
+- ✓ Costs exactly 300 pence (fails if insufficient funds)
+- ✓ Grants exactly +1.5 nutrition skill
+- ✓ Requires item with "kettle" OR "stove" tag at current location
+- ✓ Creativity trait (75+) provides additional 10% hunger reduction (-3.5 total = -38.5)
+
+**clean_room action:**
+- ✓ Increases hygiene by exactly +5
+- ✓ Increases mood by exactly +8
+- ✓ Decreases stress by exactly -3
+- ✓ Grants exactly +2.0 maintenance skill
+- ✓ Can be performed in any location
+- ✓ Maintenance skill ≥ 60 can restore one worn item to used condition
+- ✓ No effect on pristine or broken items
+
+**exercise action:**
+- ✓ Increases fatigue by exactly +20
+- ✓ Increases hunger by exactly +5
+- ✓ Increases mood by exactly +10
+- ✓ Increases energy by exactly +5
+- ✓ Grants exactly +2.5 reflexivity skill
+- ✓ Fitness trait (75+) reduces fatigue cost by 20% (+16 instead of +20)
+- ✓ Can be performed in any location
+
+**General:**
+- ✓ All actions appear in view only when requirements met (location, items, utilities)
+- ✓ All actions advance time by 1 time slice
+- ✓ All stat changes apply immediately in same turn
+
 ---
 
 ## Phase 2: Core Gameplay Systems (Depth & Consequences)
@@ -162,6 +237,29 @@ This plan outlines the phased development strategy for RoomLife, prioritizing fe
 
 **Backward Compatibility:** ⚠️ Semi-compatible - add `health=100` default in load function.
 
+**Acceptance Criteria:**
+- ✓ `health` field added to Needs dataclass with range 0-100
+- ✓ Health initializes to 100 for new games
+- ✓ Old save files load with health defaulting to 100
+- ✓ Hunger > 80 causes exactly -2 health per turn
+- ✓ Hunger > 80 causes exactly +5 fatigue per turn (in addition to health loss)
+- ✓ Fatigue > 90 causes exactly -1 health per turn
+- ✓ Fatigue > 90 increases all action costs by exactly 50%
+- ✓ Hygiene < 20 causes exactly -1 health per turn
+- ✓ Hygiene < 20 causes exactly -5 mood per turn
+- ✓ Warmth < 30 causes exactly -3 health per turn
+- ✓ Warmth < 30 causes exactly +5 fatigue per turn
+- ✓ Stress > 80 causes exactly -1 health per turn
+- ✓ Stress > 80 causes exactly -5 mood per turn
+- ✓ Health < 50 reduces all skill gains by exactly 50%
+- ✓ Health < 30 unlocks `visit_doctor` action
+- ✓ `visit_doctor` costs exactly 5000 pence (fails if insufficient)
+- ✓ `visit_doctor` restores exactly +30 health
+- ✓ Health cannot exceed 100 or drop below 0
+- ✓ Health = 0 displays "Critical Health" warning but allows continued play
+- ✓ Health = 0 applies severe penalties to all actions (e.g., doubled costs)
+- ✓ All health consequences apply in `_apply_environment()` call
+
 ---
 
 ### 2.2 Shopping & Economy Expansion (Priority: MEDIUM) ⏱️ 3-4 hours
@@ -184,6 +282,25 @@ This plan outlines the phased development strategy for RoomLife, prioritizing fe
 - `src/roomlife/models.py`: Possibly add `consumables` list to Player
 
 **Backward Compatibility:** ✅ Full - adds new action and optional inventory.
+
+**Acceptance Criteria:**
+- ✓ `shop_catalog` defined in constants.py with all specified items
+- ✓ Coffee costs exactly 150 pence, provides defined benefits
+- ✓ Proper meal costs exactly 800 pence, provides defined benefits
+- ✓ Vitamins cost exactly 500 pence, provide defined benefits
+- ✓ Skill-specific books cost exactly 2000 pence each
+- ✓ Portable heater costs exactly 8000 pence
+- ✓ Upgraded desk costs exactly 15000 pence
+- ✓ `buy <item_id>` action successfully purchases item and deducts cost
+- ✓ `buy` action fails with error if insufficient funds
+- ✓ `buy` action fails with error if invalid item_id
+- ✓ Persuasion skill provides exactly 1% discount per skill point (e.g., persuasion 50 = 50% off)
+- ✓ Persuasion discount caps at 10 skill points = 10% maximum discount
+- ✓ Frugality trait (75+) provides additional 5% discount stacked with persuasion
+- ✓ Purchased consumables are tracked and usable
+- ✓ Purchased physical items added to appropriate location with correct tags
+- ✓ Book items grant XP boost when used with corresponding skill action
+- ✓ View displays shop catalog with prices (including applied discounts)
 
 ---
 
@@ -221,6 +338,27 @@ This plan outlines the phased development strategy for RoomLife, prioritizing fe
 
 **Backward Compatibility:** ✅ Full - NPCs are new addition, relationships already exist.
 
+**Acceptance Criteria:**
+- ✓ NPC dataclass defined with all fields: npc_id, name, location, schedule, relationship_threshold
+- ✓ At least 3 NPCs defined in data/npcs.yaml (neighbor, landlord, coworker minimum)
+- ✓ Each NPC has valid schedule mapping time slices to locations
+- ✓ NPCs appear in view only when at same location as player
+- ✓ NPC location updates according to schedule each time slice
+- ✓ `chat <npc_id>` action grants exactly +1.5 presence skill
+- ✓ `chat <npc_id>` increases relationship by exactly +3
+- ✓ `chat <npc_id>` increases mood by exactly +5
+- ✓ `chat` action fails if NPC not at current location
+- ✓ `deep_talk <npc_id>` grants exactly +2.0 articulation skill
+- ✓ `deep_talk <npc_id>` increases relationship by exactly +8
+- ✓ `deep_talk <npc_id>` decreases stress by exactly -5
+- ✓ `deep_talk` requires relationship > 30 (fails with message if not met)
+- ✓ `ask_favor <npc_id>` grants exactly +1.0 persuasion skill
+- ✓ `ask_favor` can unlock bonuses (implementation-defined)
+- ✓ All social actions fail gracefully if invalid npc_id
+- ✓ Relationships persist across save/load cycles
+- ✓ Old save files load with empty NPC list, NPCs initialize on first encounter
+- ✓ View displays NPC names and relationship levels at current location
+
 ---
 
 ### 2.4 Random Events System (Priority: MEDIUM) ⏱️ 4-5 hours
@@ -245,6 +383,27 @@ This plan outlines the phased development strategy for RoomLife, prioritizing fe
 - `src/roomlife/engine.py`: Add `_process_random_events()` in `_apply_environment()`
 
 **Backward Compatibility:** ✅ Full - just adds new event rolls.
+
+**Acceptance Criteria:**
+- ✓ RANDOM_EVENTS list defined in constants.py with all event types
+- ✓ Events roll with probability between 3-8% per turn
+- ✓ Only one event can trigger per turn (no event stacking)
+- ✓ `package_delivery` event costs exactly -500 pence
+- ✓ `found_money` event grants exactly +200 pence
+- ✓ `helpful_neighbor` event increases specific NPC relationship (amount defined)
+- ✓ `argument` event decreases specific NPC relationship (amount defined)
+- ✓ `food_poisoning` event decreases health by defined amount
+- ✓ `good_sleep` event increases energy by defined amount
+- ✓ `item_breaks` event reduces item condition by exactly -20 (or one degradation level)
+- ✓ `surprise_gift` event adds new item to player location
+- ✓ Time-gated events only trigger during specified time slices
+- ✓ Location-gated events only trigger in specified locations
+- ✓ Requirement-gated events check prerequisites (NPC presence, skill levels, etc.)
+- ✓ Events with unmet requirements are skipped from roll pool
+- ✓ Event messages logged to event log with clear descriptions
+- ✓ Events use existing deterministic RNG for reproducibility
+- ✓ `_process_random_events()` called within `_apply_environment()`
+- ✓ No events trigger on first turn of new game
 
 ---
 
@@ -290,6 +449,50 @@ This plan outlines the phased development strategy for RoomLife, prioritizing fe
 
 **Backward Compatibility:** ✅ Full - new actions, optional state additions.
 
+**Acceptance Criteria:**
+
+**meditate action:**
+- ✓ Decreases stress by exactly -15
+- ✓ Increases mood by exactly +5
+- ✓ Decreases fatigue by exactly -5
+- ✓ Grants exactly +3.0 introspection skill
+- ✓ Stoicism trait (75+) increases stress reduction by 50% (-22.5 total)
+- ✓ Can be performed in any location
+
+**optimize_space action:**
+- ✓ Requires maintenance skill > 20 (fails with message if not met)
+- ✓ Can only be performed once per space (subsequent attempts fail)
+- ✓ Marks space as "optimized" in `state.space_optimizations` dict
+- ✓ All future actions in optimized space have -10% fatigue cost
+- ✓ Grants exactly +5.0 ergonomics skill
+- ✓ Optimization persists across save/load cycles
+
+**budget_planning action:**
+- ✓ Grants exactly +2.0 analysis skill
+- ✓ Unlocks "financial_report" in view showing spending trends
+- ✓ Analysis skill ≥ 50 enables expense prediction feature
+- ✓ Predictions show upcoming bill dates and amounts
+- ✓ Can be performed in any location
+
+**creative_hobby action:**
+- ✓ Increases mood by exactly +12
+- ✓ Decreases stress by exactly -8
+- ✓ Creativity trait (75+) doubles mood benefit (+24 instead of +12)
+- ✓ Can be performed in any location
+- ✓ No skill gains (pure recreational activity)
+
+**study_advanced action:**
+- ✓ Requires focus skill > 30 (fails with message if not met)
+- ✓ Grants exactly +4.5 focus skill (compared to +3.0 for basic study)
+- ✓ Grants exactly +1.5 analysis skill
+- ✓ Increases fatigue by exactly +15
+- ✓ All other study requirements apply (items, location bonuses, etc.)
+
+**General:**
+- ✓ All actions advance time by 1 time slice
+- ✓ `space_optimizations` dict added to State model (defaults to empty)
+- ✓ Old save files load with empty space_optimizations dict
+
 ---
 
 ### 3.2 Goals & Progression System (Priority: LOW-MEDIUM) ⏱️ 5-6 hours
@@ -321,6 +524,26 @@ This plan outlines the phased development strategy for RoomLife, prioritizing fe
 - `src/roomlife/view.py`: Show active goals
 
 **Backward Compatibility:** ✅ Full - goals optional, default to empty list.
+
+**Acceptance Criteria:**
+- ✓ Goal dataclass defined with fields: goal_id, description, conditions, reward, completed
+- ✓ GOAL_TREE defined in constants.py with early/mid/late progression
+- ✓ "Survive 7 days" goal completes when day_count ≥ 7
+- ✓ "Pay utilities 3 times" goal tracks utility payments, completes at 3
+- ✓ "Reach focus 50" goal completes when focus skill ≥ 50
+- ✓ "Save 20000 pence" goal completes when money_pence ≥ 20000
+- ✓ "Master a skill (100)" goal completes when any skill reaches 100
+- ✓ "Befriend all NPCs" goal completes when all NPCs have relationship > threshold
+- ✓ Goal conditions support multiple criteria types (skill, money, day_count, etc.)
+- ✓ Rewards apply immediately upon goal completion
+- ✓ Completed goals persist across save/load cycles
+- ✓ `_check_goals()` runs after each action in `apply_action()`
+- ✓ Goal completion logged to event log
+- ✓ Completing goals unlocks new goals in tree (dependency system)
+- ✓ Goals cannot complete twice (completed flag prevents re-completion)
+- ✓ View displays active goals with progress indicators
+- ✓ View shows completed goals separately
+- ✓ Old save files load with empty goals list, goals initialize on next turn
 
 ---
 
@@ -365,6 +588,48 @@ This plan outlines the phased development strategy for RoomLife, prioritizing fe
 
 **Backward Compatibility:** ⚠️ Semi-compatible - need migration to add new spaces to existing saves.
 
+**Acceptance Criteria:**
+
+**local_shop location:**
+- ✓ Added to data/spaces.yaml with proper space_id
+- ✓ Connected to hall_001 (bidirectional connection)
+- ✓ Shopping actions available only in this location
+- ✓ Shopkeeper NPC present according to schedule
+- ✓ `buy` and `chat` actions work correctly at this location
+
+**park location:**
+- ✓ Added to data/spaces.yaml with proper space_id
+- ✓ Connected to building exterior (new intermediate space created)
+- ✓ Exercise action provides +50% benefits when performed here
+- ✓ Park bonuses: mood +15 (vs +10), same fatigue cost
+- ✓ Weather system integration points defined (future enhancement)
+- ✓ `exercise`, `meditate`, and social actions available
+
+**library location:**
+- ✓ Added to data/spaces.yaml with proper space_id
+- ✓ Connected to building exterior
+- ✓ Study actions provide +25% skill gain when performed here
+- ✓ Free books available as consumable items (one-time pickup)
+- ✓ `study`, `read`, and `deep_talk` actions available
+- ✓ Study bonus applies to both basic and advanced study
+
+**workplace location:**
+- ✓ Added to data/spaces.yaml with proper space_id
+- ✓ Connected to building exterior
+- ✓ Work action provides +25% income when performed here
+- ✓ Work bonus: 125% of base pay
+- ✓ Coworker NPCs present during work time slices only
+- ✓ Work time slices defined in NPC schedules
+
+**General:**
+- ✓ All new spaces have proper tags, descriptions, and connections
+- ✓ Building exterior intermediate space created and connected
+- ✓ Location-specific bonuses apply automatically based on current location
+- ✓ Location-specific events added to RANDOM_EVENTS for new locations
+- ✓ Old save files load successfully with new locations added to world
+- ✓ Migration script adds new spaces to existing world state
+- ✓ No breaking changes to existing location IDs or connections
+
 ---
 
 ## Phase 4: Polish & Refinement
@@ -390,6 +655,57 @@ This plan outlines the phased development strategy for RoomLife, prioritizing fe
 - `tests/test_balance.py`: Test game balance
 - `tests/test_compatibility.py`: Test save migrations
 
+**Acceptance Criteria:**
+
+**Action tests (test_actions.py):**
+- ✓ Test suite covers 100% of implemented actions
+- ✓ Each action test validates exact stat changes (e.g., sleep restores X fatigue)
+- ✓ Each action test validates costs (money, fatigue, etc.)
+- ✓ Each action test validates prerequisites (location, items, utilities)
+- ✓ Each action test validates failure conditions return appropriate errors
+- ✓ Movement action tests validate connection checking
+- ✓ Item-dependent actions tested with/without required items
+
+**Skill tests (test_skills.py):**
+- ✓ Skill gain calculations tested for all actions
+- ✓ Skill rust calculations tested over time periods
+- ✓ Skill caps (0-100) enforced in all scenarios
+- ✓ Health penalties (<50 health) reduce skill gains by exactly 50%
+- ✓ Trait bonuses to skill gains calculated correctly
+- ✓ Location bonuses to skill gains calculated correctly (e.g., library +25%)
+
+**Trait tests (test_traits.py):**
+- ✓ All trait thresholds tested (verify effects at 74, 75, 76)
+- ✓ Creativity trait doubles mood benefit in creative_hobby
+- ✓ Fitness trait reduces exercise fatigue by 20%
+- ✓ Frugality trait provides 5% shopping discount
+- ✓ Stoicism trait increases stress reduction by 50%
+- ✓ Trait effects stack correctly with other bonuses
+
+**Balance tests (test_balance.py):**
+- ✓ Simulated 30-day playthrough completes without forced game over
+- ✓ Money flow allows saving ~500p/day with reasonable play
+- ✓ Each need requires attention every 2-3 days maximum
+- ✓ Player can actively maintain 3-4 skills without excessive rust
+- ✓ Health consequences avoidable with moderate needs management
+- ✓ Item durability lasts reasonable duration with maintenance
+- ✓ No actions create infinite money/stat loops
+
+**Compatibility tests (test_compatibility.py):**
+- ✓ Save files from version N-1 load successfully
+- ✓ Missing health field defaults to 100
+- ✓ Missing goals list defaults to empty []
+- ✓ Missing space_optimizations defaults to empty {}
+- ✓ Missing NPCs list defaults to empty []
+- ✓ All new spaces added to existing world states
+- ✓ Schema version increments correctly on breaking changes
+
+**General:**
+- ✓ All tests use deterministic RNG for reproducibility
+- ✓ Test coverage ≥ 80% for engine.py
+- ✓ All tests pass in CI/CD pipeline
+- ✓ No flaky tests (100% pass rate on 10 consecutive runs)
+
 ---
 
 ### 4.2 Balance Pass (Priority: MEDIUM) ⏱️ 4-6 hours
@@ -412,6 +728,29 @@ This plan outlines the phased development strategy for RoomLife, prioritizing fe
 - `scripts/balance_sim.py`: Simulation runner
 - Update `src/roomlife/constants.py`: Adjust tuning constants
 
+**Acceptance Criteria:**
+- ✓ Balance simulation script runs 100 games for 30 in-game days each
+- ✓ Simulation uses varied random strategies (random, conservative, aggressive, balanced)
+- ✓ Survival rate ≥ 90% for balanced strategy over 30 days
+- ✓ Average money at day 30 between 10,000-20,000 pence (balanced strategy)
+- ✓ Work income vs. expenses ratio allows saving 400-600 pence/day
+- ✓ Needs degradation rates require attention every 2-3 days (not every turn)
+- ✓ Hunger degradation: reaches 80 after ~48-72 hours of neglect
+- ✓ Fatigue degradation: reaches 90 after ~2-3 days of activity
+- ✓ Hygiene degradation: reaches critical (<20) after ~3-4 days
+- ✓ Stress accumulation: manageable with 1-2 stress-relief actions per week
+- ✓ Skill rust rate allows maintaining 3-4 skills with regular use
+- ✓ Unused skills rust at rate: -1 to -2 points per day
+- ✓ Actively used skills gain faster than rust: +3 to +5 per action
+- ✓ Health consequences create challenge but not instant failure
+- ✓ Health < 50 scenario: recoverable within 3-5 days of care
+- ✓ Item durability: items last 7-14 uses before requiring maintenance
+- ✓ Maintenance skill reduces degradation: high skill = 50% longer item life
+- ✓ No single action dominates optimal play (variety encouraged)
+- ✓ All 12 skills have viable progression paths to 100
+- ✓ Simulation output includes graphs/tables of key metrics
+- ✓ Constants adjusted based on simulation results documented in comments
+
 ---
 
 ### 4.3 UI/UX Improvements (Priority: LOW) ⏱️ 5-6 hours
@@ -429,6 +768,59 @@ This plan outlines the phased development strategy for RoomLife, prioritizing fe
 **Files to modify:**
 - `src/roomlife/view.py`: Enhanced view model
 - `src/roomlife/cli.py`: Better rendering with Rich library
+
+**Acceptance Criteria:**
+
+**Action filtering:**
+- ✓ View only shows actions available at current location
+- ✓ Item-dependent actions shown only when required items present
+- ✓ Utility-dependent actions shown only when utilities available
+- ✓ Skill-gated actions shown only when skill requirements met
+- ✓ Unavailable actions not displayed in action list
+- ✓ Action list dynamically updates as context changes
+
+**Action details:**
+- ✓ Each action displays costs before execution (e.g., "300 pence, +15 fatigue")
+- ✓ Each action displays benefits before execution (e.g., "-35 hunger, +3 mood")
+- ✓ Skill gains shown in action preview
+- ✓ Location bonuses shown in action preview (e.g., "library: +25% skill gain")
+- ✓ Trait bonuses shown in action preview if applicable
+- ✓ Prerequisites clearly stated for locked actions
+
+**Smart suggestions:**
+- ✓ System highlights needs that are critical (< 20 or > 80)
+- ✓ System suggests actions to address critical needs
+- ✓ System highlights low health (< 50) with suggested recovery actions
+- ✓ System suggests goals that are near completion
+- ✓ Suggestions update dynamically based on current state
+
+**Event formatting:**
+- ✓ Event log uses Rich formatting (colors, bold, italics)
+- ✓ Positive events displayed in green
+- ✓ Negative events displayed in red
+- ✓ Neutral events displayed in default color
+- ✓ Important events (goal completion, health warnings) highlighted
+
+**Status warnings:**
+- ✓ Needs < 20 displayed in red
+- ✓ Needs 20-40 displayed in yellow
+- ✓ Needs > 80 displayed in red (for hunger, stress, fatigue)
+- ✓ Health < 30 displayed with red warning
+- ✓ Health 30-50 displayed with yellow warning
+- ✓ Money < 2000 pence displayed with yellow warning
+
+**Progress indicators:**
+- ✓ Skills show progress bars (e.g., "Focus: [████░░░░░░] 45/100")
+- ✓ Goals show completion percentage
+- ✓ Item condition shows visual indicator (pristine/used/worn/broken)
+- ✓ Relationship levels show progress bars
+- ✓ Progress bars use Rich library components
+
+**General:**
+- ✓ All UI improvements work in terminal environment
+- ✓ UI remains readable in both light and dark terminal themes
+- ✓ No performance degradation from UI enhancements
+- ✓ UI gracefully handles very long action lists (pagination if needed)
 
 ---
 
@@ -576,28 +968,51 @@ Phase 4: Polish
 
 ## Success Metrics
 
-### Phase 1 Success
-- ✅ Player can move between 3+ locations
-- ✅ 10+ actions available
-- ✅ Items affect action availability/effectiveness
+**Note:** Each phase now includes detailed **Acceptance Criteria** sections with measurable, testable specifications for every feature. The high-level success metrics below summarize phase completion goals, while the detailed criteria define exact thresholds and validation methods.
 
-### Phase 2 Success
-- ✅ Health system creates meaningful consequences
-- ✅ 3+ NPCs with relationships
-- ✅ Random events fire 1-2 per day
-- ✅ Economy has money sinks beyond utilities
+### Phase 1 Success (See sections 1.1-1.3 for detailed acceptance criteria)
+- ✅ Player can move between 3+ locations with validated connections
+- ✅ 10+ actions available (6 existing + 4 new essential actions)
+- ✅ Items affect action availability/effectiveness with measurable impacts
+- ✅ Movement costs exactly +2 fatigue per move
+- ✅ Item degradation follows pristine→used→worn→broken sequence
+- ✅ All new actions have specific, testable stat changes
 
-### Phase 3 Success
-- ✅ All 12 skills actively used in gameplay
-- ✅ 5+ locations to explore
-- ✅ 10+ goals for progression
-- ✅ 20+ total actions available
+### Phase 2 Success (See sections 2.1-2.4 for detailed acceptance criteria)
+- ✅ Health system creates meaningful consequences with exact thresholds
+  - Hunger > 80: -2 health/turn
+  - Fatigue > 90: -1 health/turn + 50% action cost increase
+  - Health < 50: -50% skill gains
+- ✅ 3+ NPCs with relationships and schedules
+- ✅ Random events fire with 3-8% probability per turn
+- ✅ Economy has money sinks (shopping) with exact pricing
+- ✅ Social actions grant specific skill gains (presence, articulation, persuasion)
 
-### Overall Success
-- ✅ Game session is engaging for 30+ in-game days
-- ✅ Player faces interesting choices each turn
-- ✅ Systems create emergent gameplay
-- ✅ Clear progression path from beginning to mastery
+### Phase 3 Success (See sections 3.1-3.3 for detailed acceptance criteria)
+- ✅ All 12 skills actively used with multiple action paths
+- ✅ 5+ locations to explore with measurable bonuses
+  - Library: +25% skill gains
+  - Park: +50% exercise benefits
+  - Workplace: +25% work income
+- ✅ 6+ goals defined with concrete completion conditions
+- ✅ 20+ total actions available across all phases
+- ✅ Space optimization system with -10% fatigue reduction
+
+### Phase 4 Success (See sections 4.1-4.3 for detailed acceptance criteria)
+- ✅ Test coverage ≥ 80% for engine.py
+- ✅ Balance simulation shows ≥ 90% survival rate over 30 days
+- ✅ Money flow allows saving 400-600 pence/day
+- ✅ Needs require attention every 2-3 days (validated through simulation)
+- ✅ UI shows color-coded warnings (red < 20, yellow 20-40)
+- ✅ Action filtering shows only contextually available actions
+
+### Overall Success (Validated by detailed acceptance criteria throughout)
+- ✅ Game session is engaging for 30+ in-game days (balance sim validates)
+- ✅ Player faces interesting choices each turn (no dominant strategy)
+- ✅ Systems create emergent gameplay (NPCs + events + locations + skills)
+- ✅ Clear progression path from beginning to mastery (goals system)
+- ✅ All features have concrete, testable acceptance criteria
+- ✅ Backward compatibility maintained or explicitly documented
 
 ---
 
