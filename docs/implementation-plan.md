@@ -7,9 +7,9 @@ This plan outlines the phased development strategy for RoomLife, prioritizing fe
 1. **Phase 1: MVP Improvements** - Movement, essential actions, item interactions (12-16 hours)
 2. **Phase 2: Core Gameplay Systems** - Health, social, economy, random events (16-21 hours)
 3. **Phase 3: Content Expansion** - Advanced actions, goals, expanded world (13-17 hours)
-4. **Phase 4: Polish & Refinement** - Testing, balance, UI/UX improvements (15-20 hours)
+4. **Phase 4: Polish & Refinement** - Testing, balance, telemetry/metrics, UI/UX improvements (18-24 hours)
 
-**Total estimated effort:** 56-74 hours for complete implementation
+**Total estimated effort:** 59-78 hours for complete implementation
 
 ### Acceptance Criteria Framework
 
@@ -46,6 +46,126 @@ These criteria enable precise QA, automated testing, and clear definition of "do
 - **Use defaults in loading logic** for newly added fields (e.g., `health=100`) to keep legacy saves playable, aligning with the existing schema versioning/backward compatibility guidance above.
 - **Increment `schema_version`** only for breaking structure changes that cannot be safely defaulted.
 - **Provide targeted data migrations** when expanding the world (new spaces/items) so older saves can be upgraded to the new content set without losing progress.
+
+---
+
+## UI/UX Phased Rollout Strategy
+
+**Goal:** Introduce UI/UX improvements progressively throughout development rather than as a single late-phase effort. This prevents large UI refactors late in the plan and improves usability as core systems are built.
+
+### Phase 1 UI/UX: Core Action Visibility (Integrated with 1.1-1.3)
+**When:** Implemented alongside movement and essential actions
+**What:**
+- ✓ **Action filtering basics**: Only show movement actions for connected locations
+- ✓ **Location-aware action display**: Filter actions by current location (e.g., shower only in bathroom)
+- ✓ **Utility-aware action display**: Show/hide utility-dependent actions (shower requires water)
+- ✓ **Simple cost preview**: Display basic costs for actions (e.g., "move: +2 fatigue")
+
+**Implementation:**
+- Modify `view.py` to filter actions based on location and context
+- Add simple cost indicators in parentheses next to action names
+- No complex UI library needed yet - basic text formatting
+
+**Rationale:** Players need immediate feedback on what actions are available as spatial gameplay is introduced. Prevents confusion about why actions fail.
+
+---
+
+### Phase 2 UI/UX: Status Warnings & Feedback (Integrated with 2.1-2.4)
+**When:** Implemented alongside health system and social features
+**What:**
+- ✓ **Basic status warnings**: Highlight critical needs with simple markers (e.g., "⚠ Hunger: 85")
+- ✓ **Health warnings**: Show health status with visual indicator when below 50
+- ✓ **NPC presence indicators**: Show which NPCs are at current location
+- ✓ **Event formatting improvements**: Add visual separation for events in log
+
+**Implementation:**
+- Add warning symbols (⚠, ‼) to critical stats in view.py
+- Simple conditional formatting for health display
+- Basic event log formatting with newlines/separators
+- Still no external UI dependencies
+
+**Rationale:** Health system introduces stakes that require player awareness. Social system needs clear NPC visibility to encourage interaction.
+
+---
+
+### Phase 3 UI/UX: Progress & Information (Integrated with 3.1-3.2)
+**When:** Implemented alongside advanced actions and goals
+**What:**
+- ✓ **Action details on demand**: Show detailed costs/benefits for actions (command-based or help system)
+- ✓ **Goal progress display**: Show active goals with simple progress indicators
+- ✓ **Skill progress indicators**: Basic progress display for skills (e.g., "Focus: 45/100")
+- ✓ **Smart suggestions (basic)**: Highlight near-complete goals or urgent needs in view
+
+**Implementation:**
+- Add `help <action>` command to show detailed action info
+- Display goal list with completion status
+- Add progress fraction to skill display
+- Simple rule-based suggestions in view model
+
+**Rationale:** Goals system needs visibility to be effective. Players need information to make strategic decisions about skill development.
+
+---
+
+### Phase 4 UI/UX: Polish & Rich Formatting (4.4)
+**When:** Final polish phase, after core systems complete
+**What:**
+- ✓ **Rich library integration**: Color-coded warnings (red/yellow/green)
+- ✓ **Progress bars**: Visual progress bars for skills, goals, relationships
+- ✓ **Enhanced event formatting**: Colors for positive/negative events
+- ✓ **Smart suggestions (advanced)**: Context-aware recommendations with rationale
+- ✓ **Action preview system**: Show projected stat changes before taking action
+
+**Implementation:**
+- Integrate Rich library for terminal formatting
+- Full color scheme implementation
+- Advanced view model with calculations for projections
+- Comprehensive filtering and suggestion engine
+
+**Rationale:** Core gameplay complete - now optimize for readability and user experience. Rich formatting improves comprehension without changing functionality.
+
+---
+
+### UI/UX Feature Toggles
+
+To support progressive rollout and A/B testing, implement feature flags in `constants.py`:
+
+```python
+UI_FEATURES = {
+    "action_filtering": True,           # Phase 1 (always enabled)
+    "cost_preview": True,               # Phase 1 (always enabled)
+    "status_warnings": True,            # Phase 2 (always enabled)
+    "goal_progress_display": True,      # Phase 3 (always enabled)
+    "rich_formatting": False,           # Phase 4 (toggle for testing)
+    "smart_suggestions": False,         # Phase 4 (toggle for testing)
+    "action_projections": False,        # Phase 4 (toggle for testing)
+}
+```
+
+**Benefits:**
+- Test features independently before full rollout
+- Disable advanced UI if terminal compatibility issues arise
+- Easy comparison between minimal/rich UI experiences
+- Support for testing automation (disable rich formatting in tests)
+
+---
+
+### UI/UX Implementation Checklist
+
+| Phase | Feature | Priority | Implementation Location | Status |
+|-------|---------|----------|------------------------|--------|
+| 1 | Action filtering by location | HIGH | `view.py`, `_get_available_actions()` | Pending |
+| 1 | Basic cost preview | HIGH | `view.py`, action display | Pending |
+| 2 | Status warnings (⚠ symbols) | MEDIUM | `view.py`, needs display | Pending |
+| 2 | Health status indicator | HIGH | `view.py`, health display | Pending |
+| 2 | NPC presence display | MEDIUM | `view.py`, location info | Pending |
+| 3 | Action help/details system | MEDIUM | `cli.py`, help command | Pending |
+| 3 | Goal progress display | HIGH | `view.py`, goals section | Pending |
+| 3 | Skill progress fractions | LOW | `view.py`, skills display | Pending |
+| 3 | Basic smart suggestions | MEDIUM | `view.py`, suggestion engine | Pending |
+| 4 | Rich library integration | LOW | `cli.py`, full migration | Pending |
+| 4 | Color-coded warnings | LOW | `view.py` + `cli.py` | Pending |
+| 4 | Progress bars | LOW | `view.py`, Rich integration | Pending |
+| 4 | Action projections | LOW | `view.py`, calculation engine | Pending |
 
 ---
 
@@ -753,7 +873,134 @@ These criteria enable precise QA, automated testing, and clear definition of "do
 
 ---
 
-### 4.3 UI/UX Improvements (Priority: LOW) ⏱️ 5-6 hours
+### 4.3 Telemetry & Metrics System (Priority: HIGH) ⏱️ 3-4 hours
+
+**Why:** Provides data-driven validation of balance assumptions, enables tuning based on actual gameplay patterns, and tracks player behavior to identify issues early.
+
+**Implementation Strategy:**
+- Create metrics collection system that tracks key gameplay indicators
+- Define target ranges for critical metrics based on design goals
+- Implement persistent logging to file for analysis
+- Add metrics reporting to simulation runs
+- Create dashboard/report generation for metrics visualization
+
+**Metrics to Track:**
+
+#### 1. Survival & Health Metrics
+- **survival_rate**: % of games reaching day 30 without game over
+  - **Target range**: 85-95% (balanced strategy)
+  - **Storage**: `metrics_log.json`, field: `survival_30day`
+- **avg_health**: Average health over time
+  - **Target range**: 60-80 (healthy gameplay)
+  - **Storage**: `metrics_log.json`, field: `health_timeseries`
+- **critical_health_frequency**: # of times health drops below 30
+  - **Target range**: 0-2 times per 30 days (rare but possible)
+  - **Storage**: `metrics_log.json`, field: `critical_health_events`
+
+#### 2. Economic Metrics
+- **avg_balance_day30**: Money at day 30
+  - **Target range**: 10,000-20,000 pence (steady savings)
+  - **Storage**: `metrics_log.json`, field: `final_balance`
+- **daily_savings_rate**: Average pence saved per day
+  - **Target range**: 400-600 pence/day
+  - **Storage**: `metrics_log.json`, field: `savings_rate`
+- **bankruptcy_rate**: % of games with negative balance
+  - **Target range**: <5%
+  - **Storage**: `metrics_log.json`, field: `bankruptcy_count`
+- **expense_breakdown**: Proportion of spending by category
+  - **Target range**: Bills 60%, Food 20%, Other 20%
+  - **Storage**: `metrics_log.json`, field: `expense_categories`
+
+#### 3. Needs Management Metrics
+- **need_critical_frequency**: How often each need reaches critical levels
+  - **Target range**: Each need critical 0-1 times per week
+  - **Storage**: `metrics_log.json`, field: `critical_needs_by_type`
+- **avg_need_levels**: Average value of each need over time
+  - **Target range**: Hunger 40-60, Fatigue 30-50, Hygiene 50-70, Stress 30-50
+  - **Storage**: `metrics_log.json`, field: `needs_timeseries`
+- **need_attention_frequency**: Days between addressing each need
+  - **Target range**: 2-3 days per need
+  - **Storage**: `metrics_log.json`, field: `need_service_intervals`
+
+#### 4. Skill Progression Metrics
+- **skills_maintained**: # of skills kept above 30
+  - **Target range**: 3-4 skills (validates rust/gain balance)
+  - **Storage**: `metrics_log.json`, field: `active_skills_count`
+- **skill_progression_rate**: Average skill gain per day for active skills
+  - **Target range**: +2 to +5 points/day
+  - **Storage**: `metrics_log.json`, field: `skill_velocity`
+- **skill_diversity**: % of skills used at least once per week
+  - **Target range**: 70-80% (9-10 of 12 skills)
+  - **Storage**: `metrics_log.json`, field: `skill_usage_diversity`
+
+#### 5. Action & Content Engagement
+- **action_diversity**: # of unique actions used per week
+  - **Target range**: 12-15 actions (good variety)
+  - **Storage**: `metrics_log.json`, field: `weekly_action_variety`
+- **dominant_action_ratio**: % of actions that are most-used action
+  - **Target range**: <30% (no single dominant strategy)
+  - **Storage**: `metrics_log.json`, field: `action_concentration`
+- **location_utilization**: % of locations visited per week
+  - **Target range**: 60-80% of available locations
+  - **Storage**: `metrics_log.json`, field: `location_visit_rate`
+
+#### 6. Social & Events Metrics
+- **relationship_progression**: Average relationship gain per 10 days
+  - **Target range**: +15 to +30 per NPC
+  - **Storage**: `metrics_log.json`, field: `relationship_velocity`
+- **event_trigger_rate**: % of turns with random events
+  - **Target range**: 3-8% (as designed)
+  - **Storage**: `metrics_log.json`, field: `event_frequency`
+- **positive_negative_event_ratio**: Ratio of beneficial to harmful events
+  - **Target range**: 1.0-1.5 (slightly positive bias)
+  - **Storage**: `metrics_log.json`, field: `event_sentiment_ratio`
+
+#### 7. Item System Metrics
+- **item_durability_lifespan**: Average uses before item breaks
+  - **Target range**: 7-14 uses
+  - **Storage**: `metrics_log.json`, field: `item_lifetime`
+- **maintenance_frequency**: # of maintenance actions per week
+  - **Target range**: 2-3 (regular but not excessive)
+  - **Storage**: `metrics_log.json`, field: `maintenance_cadence`
+
+**Files to create:**
+- `src/roomlife/telemetry.py`: Metrics collection and reporting
+- `scripts/analyze_metrics.py`: Metrics visualization and analysis
+- `metrics_log.json`: Persistent metrics storage (gitignored)
+
+**Files to modify:**
+- `src/roomlife/engine.py`: Add `_collect_metrics()` called each turn
+- `scripts/balance_sim.py`: Integrate telemetry system
+
+**Implementation Details:**
+- Metrics collected every turn and written to `metrics_log.json` as append-only log
+- JSON format: `{"timestamp": "...", "day": 5, "metric_name": "...", "value": ..., "context": {...}}`
+- Simulation runs aggregate metrics across all games
+- `analyze_metrics.py` generates summary reports and charts (matplotlib)
+- Telemetry can be disabled via environment variable `ROOMLIFE_DISABLE_TELEMETRY=1`
+
+**Backward Compatibility:** ✅ Full - telemetry is additive and optional.
+
+**Acceptance Criteria:**
+- ✓ Telemetry system tracks all 25+ specified metrics
+- ✓ Each metric has defined target range documented
+- ✓ Metrics logged to `metrics_log.json` in append-only format
+- ✓ Log entries include timestamp, day, metric name, value, and context
+- ✓ `_collect_metrics()` called every turn in engine.py
+- ✓ Telemetry adds <2% performance overhead to engine
+- ✓ Simulation runs generate aggregate metrics reports
+- ✓ `analyze_metrics.py` produces summary statistics for all tracked metrics
+- ✓ Metrics visualization includes time-series graphs for key indicators
+- ✓ Target ranges highlighted in reports (green=in range, yellow=borderline, red=out of range)
+- ✓ Telemetry can be disabled without affecting gameplay
+- ✓ All target ranges validated through Phase 4.2 balance simulations
+- ✓ Out-of-range metrics trigger actionable recommendations (e.g., "Increase work income by 10%")
+- ✓ Metrics storage does not grow unbounded (rotation after 100k entries)
+- ✓ Documentation includes metrics dictionary explaining each metric's purpose
+
+---
+
+### 4.4 UI/UX Improvements (Priority: LOW) ⏱️ 5-6 hours
 
 **Why:** Better player experience, easier to understand.
 
@@ -846,7 +1093,8 @@ Phase 3: Content
 Phase 4: Polish
 ├── 4.1 Testing (ongoing, but comprehensive pass after Phase 2)
 ├── 4.2 Balance (after Phase 3)
-└── 4.3 UI/UX (ongoing improvements)
+├── 4.3 Telemetry & Metrics (after Phase 3, during balance tuning)
+└── 4.4 UI/UX (ongoing improvements throughout all phases)
 ```
 
 ---
@@ -998,13 +1246,15 @@ Phase 4: Polish
 - ✅ 20+ total actions available across all phases
 - ✅ Space optimization system with -10% fatigue reduction
 
-### Phase 4 Success (See sections 4.1-4.3 for detailed acceptance criteria)
+### Phase 4 Success (See sections 4.1-4.4 for detailed acceptance criteria)
 - ✅ Test coverage ≥ 80% for engine.py
 - ✅ Balance simulation shows ≥ 90% survival rate over 30 days
+- ✅ Telemetry system tracks 25+ metrics with defined target ranges
+- ✅ All key metrics within target ranges (validated by 4.3 metrics analysis)
 - ✅ Money flow allows saving 400-600 pence/day
 - ✅ Needs require attention every 2-3 days (validated through simulation)
 - ✅ UI shows color-coded warnings (red < 20, yellow 20-40)
-- ✅ Action filtering shows only contextually available actions
+- ✅ Action filtering shows only contextually available actions (implemented progressively)
 
 ### Overall Success (Validated by detailed acceptance criteria throughout)
 - ✅ Game session is engaging for 30+ in-game days (balance sim validates)
