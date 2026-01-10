@@ -116,14 +116,21 @@ def _apply_environment(state: State, rng: random.Random) -> None:
     if not state.player.utilities_paid:
         state.utilities.power = False
         state.utilities.heat = False
+        state.utilities.water = False
     else:
         state.utilities.power = True
         state.utilities.heat = True
+        state.utilities.water = True
 
     n = state.player.needs
     n.hunger = min(100, n.hunger + 8)
     n.fatigue = min(100, n.fatigue + 6)
-    n.hygiene = max(0, n.hygiene - 4)
+    if state.utilities.water:
+        n.hygiene = max(0, n.hygiene - 4)
+    else:
+        n.hygiene = max(0, n.hygiene - 8)
+        n.mood = max(0, n.mood - 2)
+        _log(state, "utility.no_water")
 
     if state.utilities.heat:
         n.warmth = min(100, n.warmth + 4)
