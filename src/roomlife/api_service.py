@@ -247,6 +247,48 @@ class RoomLifeAPI:
 
             return ActionValidation(valid=True, action_id=action_id)
 
+        # Handle repair actions
+        if action_id.startswith("repair_"):
+            item_id = action_id[7:]
+            items_here = self.state.get_items_at(self.state.world.location)
+            item_to_repair = None
+            for item in items_here:
+                if item.item_id == item_id:
+                    item_to_repair = item
+                    break
+
+            if item_to_repair is None:
+                return ActionValidation(
+                    valid=False,
+                    action_id=action_id,
+                    reason="Item not found at current location",
+                )
+
+            if item_to_repair.condition_value >= 90:
+                return ActionValidation(
+                    valid=False,
+                    action_id=action_id,
+                    reason="Item is already in pristine condition",
+                )
+
+            # Calculate cost
+            damage = 100 - item_to_repair.condition_value
+            base_cost = int(damage * 10)
+            maintenance_skill = self.state.player.skills_detailed["maintenance"].value
+            discount = maintenance_skill * 2
+            cost = max(50, int(base_cost - discount))
+
+            if self.state.player.money_pence < cost:
+                missing.append(f"need {cost}p (have {self.state.player.money_pence}p)")
+                return ActionValidation(
+                    valid=False,
+                    action_id=action_id,
+                    reason="Insufficient funds",
+                    missing_requirements=missing,
+                )
+
+            return ActionValidation(valid=True, action_id=action_id)
+
         # List of known non-movement actions
         known_actions = {
             "work", "study", "sleep", "eat_charity_rice", "cook_basic_meal",
@@ -593,5 +635,32 @@ class RoomLifeAPI:
                             "fatigue": "+2",
                         },
                     ))
+
+        # Add repair actions for items at current location
+        items_at_location = self.state.get_items_at(current_location)
+        for item in items_at_location:
+            # Only add repair action if item is not pristine
+            if item.condition_value < 90:
+                # Calculate repair cost
+                damage = 100 - item.condition_value
+                base_cost = int(damage * 10)
+                maintenance_skill = self.state.player.skills_detailed["maintenance"].value
+                discount = maintenance_skill * 2
+                cost = max(50, int(base_cost - discount))
+
+                item_display_name = item.item_id.replace('_', ' ').title()
+                actions.append(ActionMetadata(
+                    action_id=f"repair_{item.item_id}",
+                    display_name=f"Repair {item_display_name}",
+                    description=f"Repair {item_display_name} ({item.condition} → better)",
+                    category=ActionCategory.MAINTENANCE,
+                    requirements={"money": f"{cost}p"},
+                    effects={
+                        "money": f"-{cost}p",
+                        "item_condition": f"+30 (maintenance adjusted)",
+                        "skill": "maintenance +2.0",
+                    },
+                    cost_pence=cost,
+                ))
 
         return actions

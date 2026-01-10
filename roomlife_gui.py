@@ -113,7 +113,7 @@ class RoomLifeGUI:
 
         # Utilities section
         utilities_frame = ttk.LabelFrame(left_frame, text="Utilities", padding="10")
-        utilities_frame.grid(row=3, column=0, sticky=(tk.W, tk.E))
+        utilities_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
 
         self.utility_bars = {}
         utilities = ["power", "heat", "water"]
@@ -124,6 +124,14 @@ class RoomLifeGUI:
             progress = ttk.Progressbar(utilities_frame, length=200, mode='determinate')
             progress.grid(row=i, column=1, padx=(10, 0), pady=2)
             self.utility_bars[utility] = progress
+
+        # Items section
+        items_frame = ttk.LabelFrame(left_frame, text="Items at Location", padding="10")
+        items_frame.grid(row=4, column=0, sticky=(tk.W, tk.E))
+
+        # Scrollable text for items
+        self.items_text = scrolledtext.ScrolledText(items_frame, height=8, width=35, wrap=tk.WORD)
+        self.items_text.pack(fill=tk.BOTH, expand=True)
 
         # Top right - Actions
         actions_frame = ttk.LabelFrame(main_frame, text="Available Actions", padding="10")
@@ -188,6 +196,34 @@ class RoomLifeGUI:
         for utility, value in utilities_dict.items():
             if utility in self.utility_bars:
                 self.utility_bars[utility]['value'] = value
+
+        # Update items at current location
+        self.items_text.delete('1.0', tk.END)
+        items_at_location = self.state.get_items_at(self.state.world.location)
+        if items_at_location:
+            for item in items_at_location:
+                # Color code based on condition
+                condition_color = {
+                    'pristine': '#00AA00',
+                    'used': '#0066FF',
+                    'worn': '#FF9900',
+                    'broken': '#FF3300',
+                    'filthy': '#AA0000'
+                }.get(item.condition, '#000000')
+
+                item_text = f"• {item.item_id.replace('_', ' ').title()}\n"
+                item_text += f"  Condition: {item.condition} ({item.condition_value}/100)\n\n"
+
+                start_idx = self.items_text.index(tk.END)
+                self.items_text.insert(tk.END, item_text)
+
+                # Tag the condition line with color
+                self.items_text.tag_add(f"condition_{item.item_id}",
+                                       f"{start_idx} + {len(item_text.split(chr(10))[0]) + 1}c",
+                                       f"{start_idx} + {len(item_text.split(chr(10))[0]) + len(item_text.split(chr(10))[1])}c")
+                self.items_text.tag_config(f"condition_{item.item_id}", foreground=condition_color)
+        else:
+            self.items_text.insert(tk.END, "No items at this location")
 
         # Update actions
         self.update_actions()
