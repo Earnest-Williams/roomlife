@@ -221,7 +221,7 @@ main() {
         # No arguments, show interactive menu
         while true; do
             show_menu
-            read -p "Enter your choice: " choice
+            read -r -p "Enter your choice: " choice
 
             case $choice in
                 1)
@@ -252,7 +252,7 @@ main() {
             esac
 
             echo ""
-            read -p "Press Enter to continue..."
+            read -r -p "Press Enter to continue..."
         done
     else
         # Handle command line arguments
