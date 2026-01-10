@@ -202,7 +202,13 @@ def _apply_trait_drift(state: State) -> List[str]:
 
 
 def _calculate_current_tick(state: State) -> int:
-    return state.world.day * 4 + TIME_SLICES.index(state.world.slice)
+    try:
+        slice_index = TIME_SLICES.index(state.world.slice)
+    except ValueError:
+        # Invalid slice, default to 0 (morning)
+        print(f"Warning: Invalid time slice '{state.world.slice}' in _calculate_current_tick, using 0")
+        slice_index = 0
+    return state.world.day * 4 + slice_index
 
 
 def new_game() -> State:
