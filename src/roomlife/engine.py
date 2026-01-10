@@ -663,8 +663,11 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
         target_location = action_id[5:]  # Remove "move_" prefix
         current_location = state.world.location
 
+        # Validate current location exists (safety check for corrupted state)
+        if current_location not in state.spaces:
+            _log(state, "action.failed", action_id=action_id, reason="current_location_invalid")
         # Validate not moving to same location (check this first for better error message)
-        if target_location == current_location:
+        elif target_location == current_location:
             _log(state, "action.failed", action_id=action_id, reason="already_here")
         # Validate target location exists
         elif target_location not in state.spaces:

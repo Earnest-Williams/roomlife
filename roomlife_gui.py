@@ -195,7 +195,8 @@ class RoomLifeGUI:
         utilities_dict = snapshot.utilities.to_dict()
         for utility, value in utilities_dict.items():
             if utility in self.utility_bars:
-                self.utility_bars[utility]['value'] = value
+                # Convert boolean to numeric value (100 = on, 0 = off)
+                self.utility_bars[utility]['value'] = 100 if value else 0
 
         # Update items at current location
         self.items_text.delete('1.0', tk.END)
@@ -218,9 +219,12 @@ class RoomLifeGUI:
                 self.items_text.insert(tk.END, item_text)
 
                 # Tag the condition line with color
+                lines = item_text.split(chr(10))
+                tag_start = len(lines[0]) + 1  # Skip first line and newline
+                tag_end = tag_start + len(lines[1])  # Add second line length
                 self.items_text.tag_add(f"condition_{item.item_id}",
-                                       f"{start_idx} + {len(item_text.split(chr(10))[0]) + 1}c",
-                                       f"{start_idx} + {len(item_text.split(chr(10))[0]) + len(item_text.split(chr(10))[1])}c")
+                                       f"{start_idx} + {tag_start}c",
+                                       f"{start_idx} + {tag_end}c")
                 self.items_text.tag_config(f"condition_{item.item_id}", foreground=condition_color)
         else:
             self.items_text.insert(tk.END, "No items at this location")
@@ -278,7 +282,7 @@ class RoomLifeGUI:
                 for change_key, change_value in result.state_changes.items():
                     self.log_message(f"  • {change_key}: {change_value}")
         else:
-            self.log_message(f"❌ Failed: {action_id} - {result.message}")
+            self.log_message(f"❌ Failed: {action_id}")
 
         # Update display
         self.update_display()

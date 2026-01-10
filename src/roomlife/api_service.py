@@ -75,6 +75,9 @@ class RoomLifeAPI:
             mood=self.state.player.needs.mood,
             stress=self.state.player.needs.stress,
             energy=self.state.player.needs.energy,
+            health=self.state.player.needs.health,
+            illness=self.state.player.needs.illness,
+            injury=self.state.player.needs.injury,
         )
 
         # Build traits
@@ -134,6 +137,7 @@ class RoomLifeAPI:
             items=[ItemInfo(
                 item_id=item.item_id,
                 condition=item.condition,
+                condition_value=item.condition_value,
                 placed_in=item.placed_in,
                 slot=item.slot,
             ) for item in current_items],
@@ -153,6 +157,7 @@ class RoomLifeAPI:
                 items=[ItemInfo(
                     item_id=item.item_id,
                     condition=item.condition,
+                    condition_value=item.condition_value,
                     placed_in=item.placed_in,
                     slot=item.slot,
                 ) for item in space_items],
@@ -225,6 +230,13 @@ class RoomLifeAPI:
         if action_id.startswith("move_"):
             target_location = action_id[5:]
             current_location = self.state.world.location
+
+            if current_location not in self.state.spaces:
+                return ActionValidation(
+                    valid=False,
+                    action_id=action_id,
+                    reason="Current location is invalid",
+                )
 
             if target_location == current_location:
                 return ActionValidation(
