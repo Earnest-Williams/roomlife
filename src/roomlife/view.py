@@ -9,6 +9,21 @@ def build_view_model(state: State) -> Dict:
     n = state.player.needs
     loc = state.world.location
     space = state.spaces.get(loc)
+    p = state.player
+
+    active_skills = []
+    skill_names = [
+        "technical_literacy", "analysis", "resource_management", "presence",
+        "articulation", "persuasion", "nutrition", "maintenance", "ergonomics",
+        "reflexivity", "introspection", "focus",
+    ]
+    for skill_name in skill_names:
+        skill = getattr(p, skill_name)
+        if skill.value > 0:
+            active_skills.append({
+                "name": skill_name.replace("_", " ").title(),
+                "value": round(skill.value, 2),
+            })
 
     return {
         "time": {"day": state.world.day, "slice": state.world.slice},
@@ -21,8 +36,27 @@ def build_view_model(state: State) -> Dict:
                 "warmth": n.warmth,
                 "hygiene": n.hygiene,
                 "mood": n.mood,
+                "stress": n.stress,
+                "energy": n.energy,
             },
             "skills": dict(state.player.skills),
+            "active_skills": active_skills,
+            "aptitudes": {
+                "logic_systems": round(p.aptitudes.logic_systems, 3),
+                "social_grace": round(p.aptitudes.social_grace, 3),
+                "domesticity": round(p.aptitudes.domesticity, 3),
+                "vitality": round(p.aptitudes.vitality, 3),
+            },
+            "traits": {
+                "discipline": p.traits.discipline,
+                "confidence": p.traits.confidence,
+                "empathy": p.traits.empathy,
+                "fitness": p.traits.fitness,
+                "frugality": p.traits.frugality,
+                "curiosity": p.traits.curiosity,
+                "stoicism": p.traits.stoicism,
+                "creativity": p.traits.creativity,
+            },
         },
         "utilities": {
             "power": state.utilities.power,

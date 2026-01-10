@@ -18,6 +18,35 @@ class Needs:
     warmth: int = 70     # 0..100
     hygiene: int = 60    # 0..100
     mood: int = 60       # 0..100
+    stress: int = 0      # 0..100 (higher = more stressed)
+    energy: int = 80     # 0..100 (affected by Fitness trait)
+
+
+@dataclass
+class Skill:
+    value: float = 0.0
+    rust_rate: float = 0.5
+    last_tick: int = 0
+
+
+@dataclass
+class Aptitudes:
+    logic_systems: float = 1.0
+    social_grace: float = 1.0
+    domesticity: float = 1.0
+    vitality: float = 1.0
+
+
+@dataclass
+class Traits:
+    discipline: int = 50      # 0..100
+    confidence: int = 50
+    empathy: int = 50
+    fitness: int = 50
+    frugality: int = 50
+    curiosity: int = 50
+    stoicism: int = 50
+    creativity: int = 50
 
 
 @dataclass
@@ -45,6 +74,21 @@ class Player:
     needs: Needs = field(default_factory=Needs)
     skills: Dict[str, int] = field(default_factory=lambda: {"general": 0})
     relationships: Dict[str, int] = field(default_factory=dict)
+    aptitudes: Aptitudes = field(default_factory=Aptitudes)
+    traits: Traits = field(default_factory=Traits)
+    technical_literacy: Skill = field(default_factory=Skill)
+    analysis: Skill = field(default_factory=Skill)
+    resource_management: Skill = field(default_factory=Skill)
+    presence: Skill = field(default_factory=Skill)
+    articulation: Skill = field(default_factory=Skill)
+    persuasion: Skill = field(default_factory=Skill)
+    nutrition: Skill = field(default_factory=Skill)
+    maintenance: Skill = field(default_factory=Skill)
+    ergonomics: Skill = field(default_factory=Skill)
+    reflexivity: Skill = field(default_factory=Skill)
+    introspection: Skill = field(default_factory=Skill)
+    focus: Skill = field(default_factory=Skill)
+    habit_tracker: Dict[str, int] = field(default_factory=dict)
 
 
 @dataclass

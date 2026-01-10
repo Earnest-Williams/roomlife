@@ -26,6 +26,14 @@ def _render_status(vm: dict) -> None:
     )
     rprint(f"Money: {vm['player']['money_pence']} pence")
 
+    apt = vm["player"]["aptitudes"]
+    rprint(f"[dim]Aptitudes:[/dim] Logic={apt['logic_systems']} Social={apt['social_grace']} Domestic={apt['domesticity']} Vitality={apt['vitality']}")
+
+    notable_traits = {k: v for k, v in vm["player"]["traits"].items() if v != 50}
+    if notable_traits:
+        trait_str = " ".join([f"{k.title()}={v}" for k, v in notable_traits.items()])
+        rprint(f"[dim]Traits:[/dim] {trait_str}")
+
     n = vm["player"]["needs"]
     table = Table(title="Needs", show_header=True, header_style="bold")
     table.add_column("Hunger")
@@ -33,8 +41,26 @@ def _render_status(vm: dict) -> None:
     table.add_column("Warmth")
     table.add_column("Hygiene")
     table.add_column("Mood")
-    table.add_row(str(n["hunger"]), str(n["fatigue"]), str(n["warmth"]), str(n["hygiene"]), str(n["mood"]))
+    table.add_column("Stress")
+    table.add_column("Energy")
+    table.add_row(
+        str(n["hunger"]),
+        str(n["fatigue"]),
+        str(n["warmth"]),
+        str(n["hygiene"]),
+        str(n["mood"]),
+        str(n["stress"]),
+        str(n["energy"]),
+    )
     rprint(table)
+
+    if vm["player"]["active_skills"]:
+        stable = Table(title="Active Skills", show_header=True, header_style="bold")
+        stable.add_column("Skill")
+        stable.add_column("Level")
+        for skill in vm["player"]["active_skills"]:
+            stable.add_row(skill["name"], str(skill["value"]))
+        rprint(stable)
 
     if vm["items_here"]:
         itable = Table(title="Room contents", show_header=True, header_style="bold")
