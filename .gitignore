@@ -5,6 +5,7 @@ __pycache__/
 .ruff_cache/
 .mypy_cache/
 saves/*.json
+saves/*.yaml
 .direnv/
 .envrc
 .envrc.bak
