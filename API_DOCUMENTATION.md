@@ -163,18 +163,31 @@ for action in all_actions:
 
 ##### validate_action(action_id: str) → ActionValidation
 
-Validates if an action can be executed in the current state.
+Validates if an action can be executed in the current state. Checks:
+- Whether the action ID is known (rejects unknown actions)
+- Whether location requirements are met
+- Whether utility requirements are met
+- Whether the player has sufficient funds
+- Whether required items are present
 
 ```python
 validation = api.validate_action("shower")
 if not validation.valid:
     print(f"Cannot shower: {validation.reason}")
     print(f"Missing: {validation.missing_requirements}")
+
+# Unknown actions are rejected
+validation = api.validate_action("invalid_action_xyz")
+assert not validation.valid  # True
+assert validation.reason == "Unknown action"  # True
 ```
 
 ##### execute_action(action_id: str, rng_seed: Optional[int] = None) → ActionResult
 
-Executes an action and returns the result.
+Executes an action and returns the result. The `success` field indicates whether the action completed successfully. Actions fail if they trigger any of these events:
+- `action.failed` - Action couldn't be performed (e.g., wrong location, missing utilities)
+- `action.unknown` - Action ID not recognized by the engine
+- `bills.unpaid` - Insufficient funds to pay bills
 
 ```python
 result = api.execute_action("work", rng_seed=42)
@@ -183,6 +196,9 @@ if result.success:
     print(f"Changes: {result.state_changes}")
     for event in result.events_triggered:
         print(f"Event: {event.event_id}")
+else:
+    print("Action failed!")
+    # Check events to see why it failed
 ```
 
 ##### subscribe_to_events(callback: Callable[[EventInfo], None]) → None
