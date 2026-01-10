@@ -217,6 +217,7 @@ class RoomLifeAPI:
         Returns:
             ActionValidation with validation result
         """
+        from .engine import _find_item_with_tag
         missing = []
 
         # Handle movement actions
@@ -339,10 +340,10 @@ class RoomLifeAPI:
             if self.state.player.money_pence < cost:
                 missing.append(f"need {cost}p")
 
-            items_here = self.state.get_items_at(self.state.world.location)
-            has_cooking_item = any(item.item_id in ["kettle", "stove"] for item in items_here)
-            if not has_cooking_item:
-                missing.append("kettle or stove")
+            # Check for cooking item using tag system
+            cooking_item = _find_item_with_tag(self.state, "cook")
+            if cooking_item is None:
+                missing.append("cooking item (kettle/stove)")
 
             if missing:
                 return ActionValidation(
@@ -350,6 +351,39 @@ class RoomLifeAPI:
                     action_id=action_id,
                     reason="Missing requirements",
                     missing_requirements=missing,
+                )
+
+        elif action_id == "work":
+            # Check for desk/workspace
+            desk = _find_item_with_tag(self.state, "work")
+            if desk is None:
+                return ActionValidation(
+                    valid=False,
+                    action_id=action_id,
+                    reason="Need workspace (desk)",
+                    missing_requirements=["desk with work capability"],
+                )
+
+        elif action_id == "study":
+            # Check for desk/study area
+            desk = _find_item_with_tag(self.state, "study")
+            if desk is None:
+                return ActionValidation(
+                    valid=False,
+                    action_id=action_id,
+                    reason="Need study area (desk)",
+                    missing_requirements=["desk with study capability"],
+                )
+
+        elif action_id == "sleep":
+            # Check for bed
+            bed = _find_item_with_tag(self.state, "sleep")
+            if bed is None:
+                return ActionValidation(
+                    valid=False,
+                    action_id=action_id,
+                    reason="Need bed to sleep",
+                    missing_requirements=["bed"],
                 )
 
         return ActionValidation(valid=True, action_id=action_id)
