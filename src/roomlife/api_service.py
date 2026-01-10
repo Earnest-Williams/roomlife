@@ -657,7 +657,7 @@ class RoomLifeAPI:
                     requirements={"money": f"{cost}p"},
                     effects={
                         "money": f"-{cost}p",
-                        "item_condition": f"+30 (maintenance adjusted)",
+                        "item_condition": "+30 (maintenance adjusted)",
                         "skill": "maintenance +2.0",
                     },
                     cost_pence=cost,
