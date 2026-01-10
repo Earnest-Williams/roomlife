@@ -87,13 +87,16 @@ def main():
     # Get action metadata
     print("\n10. Action metadata example:")
     all_actions = api.get_all_actions_metadata()
-    work_action = next(a for a in all_actions if a.action_id == "work")
-    print(f"  Action: {work_action.display_name}")
-    print(f"  Category: {work_action.category}")
-    print(f"  Description: {work_action.description}")
-    print("  Effects:")
-    for effect_key, effect_value in work_action.effects.items():
-        print(f"    {effect_key}: {effect_value}")
+    work_action = next((a for a in all_actions if a.action_id == "work"), None)
+    if work_action:
+        print(f"  Action: {work_action.display_name}")
+        print(f"  Category: {work_action.category}")
+        print(f"  Description: {work_action.description}")
+        print("  Effects:")
+        for effect_key, effect_value in work_action.effects.items():
+            print(f"    {effect_key}: {effect_value}")
+    else:
+        print("  Work action not found")
 
     print("\n" + "="*60)
     print("Example complete!")

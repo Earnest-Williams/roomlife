@@ -32,6 +32,9 @@ class NeedsSnapshot:
     mood: int
     stress: int
     energy: int
+    health: int
+    illness: int
+    injury: int
 
     def to_dict(self) -> Dict[str, int]:
         return asdict(self)
@@ -101,6 +104,7 @@ class ItemInfo:
     """Information about an item."""
     item_id: str
     condition: str
+    condition_value: int
     placed_in: str
     slot: str
 
