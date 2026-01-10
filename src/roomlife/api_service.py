@@ -247,6 +247,20 @@ class RoomLifeAPI:
 
             return ActionValidation(valid=True, action_id=action_id)
 
+        # List of known non-movement actions
+        known_actions = {
+            "work", "study", "sleep", "eat_charity_rice", "cook_basic_meal",
+            "shower", "pay_utilities", "skip_utilities", "clean_room", "exercise"
+        }
+
+        # Check if action is known
+        if action_id not in known_actions:
+            return ActionValidation(
+                valid=False,
+                action_id=action_id,
+                reason="Unknown action",
+            )
+
         # Check specific action requirements
         if action_id == "shower":
             if not self.state.utilities.water:
@@ -329,8 +343,9 @@ class RoomLifeAPI:
         # Calculate state changes
         state_changes = self._calculate_state_changes(old_snapshot, new_snapshot)
 
-        # Check if action succeeded (look for failed event)
-        success = not any(event.event_id == "action.failed" for event in new_events)
+        # Check if action succeeded (look for failure events)
+        failure_events = {"action.failed", "action.unknown", "bills.unpaid"}
+        success = not any(event.event_id in failure_events for event in new_events)
 
         # Notify listeners
         for event in new_events:
