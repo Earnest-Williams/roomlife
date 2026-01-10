@@ -9,6 +9,7 @@ from rich.table import Table
 
 from .engine import apply_action, new_game
 from .io import load_state, save_state
+from .models import State
 from .view import build_view_model
 
 app = typer.Typer(add_completion=False)
@@ -81,20 +82,23 @@ def _render_status(vm: dict) -> None:
         rprint(f"- {a['id']}: {a['label']}")
 
 
-def _load_or_new(path: Path):
+def _load_or_new(path: Path) -> State:
     if path.exists():
         return load_state(path)
     return new_game()
 
 
 @app.command()
-def status(save: Path = DEFAULT_SAVE):
+def status(save: Path = DEFAULT_SAVE) -> None:
     state = _load_or_new(save)
     _render_status(build_view_model(state))
 
 
 @app.command()
-def act(action_id: str, save: Path = DEFAULT_SAVE, seed: int = 1):
+def act(action_id: str, save: Path = DEFAULT_SAVE, seed: int = 1) -> None:
+    if seed <= 0:
+        rprint("[red]Error: seed must be a positive integer[/red]")
+        raise typer.Exit(1)
     state = _load_or_new(save)
     apply_action(state, action_id, rng_seed=seed)
     save_state(state, save)
@@ -102,12 +106,12 @@ def act(action_id: str, save: Path = DEFAULT_SAVE, seed: int = 1):
 
 
 @app.command()
-def dump(save: Path = DEFAULT_SAVE):
+def dump(save: Path = DEFAULT_SAVE) -> None:
     state = _load_or_new(save)
     print(json.dumps(build_view_model(state), indent=2, sort_keys=True))
 
 
-def main():
+def main() -> None:
     app()
 
 

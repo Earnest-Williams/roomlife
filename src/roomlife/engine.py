@@ -91,6 +91,9 @@ def new_game() -> State:
         Item("desk_worn", condition="worn", placed_in="room_001", slot="wall"),
         Item("kettle", condition="used", placed_in="room_001", slot="surface"),
     ]
+    # Validate that the starting location exists in the world
+    if state.world.location not in state.spaces:
+        raise ValueError(f"Starting location '{state.world.location}' does not exist in world spaces")
     _log(state, "game.start", day=state.world.day, slice=state.world.slice)
     return state
 
