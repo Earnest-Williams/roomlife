@@ -226,56 +226,51 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
         # Check if water is available
         if not state.utilities.water:
             _log(state, "action.failed", action_id="shower", reason="no_water")
-            return
-
         # Check if in bathroom
-        if state.world.location != "bath_001":
+        elif state.world.location != "bath_001":
             _log(state, "action.failed", action_id="shower", reason="wrong_location")
-            return
+        else:
+            # Apply hygiene and mood improvements
+            state.player.needs.hygiene = max(0, state.player.needs.hygiene - 40)
+            state.player.needs.mood = min(100, state.player.needs.mood + 5)
 
-        # Apply hygiene and mood improvements
-        state.player.needs.hygiene = max(0, state.player.needs.hygiene - 40)
-        state.player.needs.mood = min(100, state.player.needs.mood + 5)
+            # Apply warmth penalty if no heat
+            if not state.utilities.heat:
+                state.player.needs.warmth = max(0, state.player.needs.warmth - 10)
 
-        # Apply warmth penalty if no heat
-        if not state.utilities.heat:
-            state.player.needs.warmth = max(0, state.player.needs.warmth - 10)
-
-        _log(state, "action.shower", hygiene_improved=40)
+            _log(state, "action.shower", hygiene_improved=40)
 
     elif action_id == "cook_basic_meal":
         # Check if player has enough money
         cost = 300
         if state.player.money_pence < cost:
             _log(state, "action.failed", action_id="cook_basic_meal", reason="insufficient_funds")
-            return
+        else:
+            # Check for kettle or stove (checking current location items)
+            items_here = state.get_items_at(state.world.location)
+            has_cooking_item = any(item.item_id in ["kettle", "stove"] for item in items_here)
 
-        # Check for kettle or stove (checking current location items)
-        items_here = state.get_items_at(state.world.location)
-        has_cooking_item = any(item.item_id in ["kettle", "stove"] for item in items_here)
+            if not has_cooking_item:
+                _log(state, "action.failed", action_id="cook_basic_meal", reason="no_cooking_item")
+            else:
+                # Deduct cost
+                state.player.money_pence -= cost
 
-        if not has_cooking_item:
-            _log(state, "action.failed", action_id="cook_basic_meal", reason="no_cooking_item")
-            return
+                # Base hunger reduction
+                hunger_reduction = 35
 
-        # Deduct cost
-        state.player.money_pence -= cost
+                # Creativity trait bonus: +10% hunger reduction if creativity >= 75
+                if state.player.traits.creativity >= 75:
+                    hunger_reduction = int(hunger_reduction * 1.1)
 
-        # Base hunger reduction
-        hunger_reduction = 35
+                # Apply effects
+                state.player.needs.hunger = max(0, state.player.needs.hunger - hunger_reduction)
+                state.player.needs.mood = min(100, state.player.needs.mood + 3)
 
-        # Creativity trait bonus: +10% hunger reduction if creativity >= 75
-        if state.player.traits.creativity >= 75:
-            hunger_reduction = int(hunger_reduction * 1.1)
+                # Gain nutrition skill
+                gain = _gain_skill_xp(state, "nutrition", 1.5, current_tick)
 
-        # Apply effects
-        state.player.needs.hunger = max(0, state.player.needs.hunger - hunger_reduction)
-        state.player.needs.mood = min(100, state.player.needs.mood + 3)
-
-        # Gain nutrition skill
-        gain = _gain_skill_xp(state, "nutrition", 1.5, current_tick)
-
-        _log(state, "action.cook_basic_meal", cost_pence=cost, hunger_reduced=hunger_reduction, skill_gain=round(gain, 2))
+                _log(state, "action.cook_basic_meal", cost_pence=cost, hunger_reduced=hunger_reduction, skill_gain=round(gain, 2))
 
     elif action_id == "clean_room":
         # Apply effects
