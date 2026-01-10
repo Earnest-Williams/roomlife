@@ -43,12 +43,25 @@ def _load_item_tags() -> Dict[str, List[str]]:
     from pathlib import Path
 
     data_path = Path(__file__).parent.parent.parent / "data" / "items.yaml"
-    with open(data_path, "r") as f:
-        data = yaml.safe_load(f)
+    try:
+        with open(data_path, "r") as f:
+            data = yaml.safe_load(f)
+    except FileNotFoundError:
+        print(f"Warning: items.yaml not found at {data_path}, returning empty tags")
+        return {}
+    except yaml.YAMLError as e:
+        print(f"Warning: Failed to parse items.yaml: {e}, returning empty tags")
+        return {}
+    except Exception as e:
+        print(f"Warning: Unexpected error loading items.yaml: {e}, returning empty tags")
+        return {}
 
     item_tags = {}
-    for item_def in data.get("items", []):
-        item_tags[item_def["id"]] = item_def.get("tags", [])
+    try:
+        for item_def in data.get("items", []):
+            item_tags[item_def["id"]] = item_def.get("tags", [])
+    except (KeyError, TypeError) as e:
+        print(f"Warning: Malformed items.yaml data structure: {e}, returning partial tags")
     return item_tags
 
 
@@ -212,7 +225,15 @@ def new_game() -> State:
 
 
 def _advance_time(state: State) -> None:
-    idx = TIME_SLICES.index(state.world.slice)
+    try:
+        idx = TIME_SLICES.index(state.world.slice)
+    except ValueError:
+        # If current slice is invalid, reset to first slice
+        print(f"Warning: Invalid time slice '{state.world.slice}', resetting to '{TIME_SLICES[0]}'")
+        state.world.slice = TIME_SLICES[0]
+        _log(state, "time.advance", day=state.world.day, slice=state.world.slice)
+        return
+
     if idx == len(TIME_SLICES) - 1:
         state.world.day += 1
         state.world.slice = TIME_SLICES[0]
@@ -324,7 +345,14 @@ def _apply_environment(state: State, rng: random.Random) -> None:
 
 
 def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
-    rng = random.Random(rng_seed + state.world.day * 97 + TIME_SLICES.index(state.world.slice))
+    try:
+        time_slice_index = TIME_SLICES.index(state.world.slice)
+    except ValueError:
+        # If current slice is invalid, use 0 as fallback
+        print(f"Warning: Invalid time slice '{state.world.slice}' in apply_action, using 0")
+        time_slice_index = 0
+
+    rng = random.Random(rng_seed + state.world.day * 97 + time_slice_index)
     current_tick = _calculate_current_tick(state)
 
     if action_id == "work":
