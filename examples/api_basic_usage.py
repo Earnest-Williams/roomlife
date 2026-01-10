@@ -91,7 +91,7 @@ def main():
     print(f"  Action: {work_action.display_name}")
     print(f"  Category: {work_action.category}")
     print(f"  Description: {work_action.description}")
-    print(f"  Effects:")
+    print("  Effects:")
     for effect_key, effect_value in work_action.effects.items():
         print(f"    {effect_key}: {effect_value}")
 

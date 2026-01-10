@@ -70,7 +70,7 @@ def main():
 
     # Summary
     print("\n" + "="*60)
-    print(f"Summary:")
+    print("Summary:")
     print(f"  Total events: {event_count['count']}")
     print(f"  Total state changes: {state_change_count['count']}")
     print("="*60)
