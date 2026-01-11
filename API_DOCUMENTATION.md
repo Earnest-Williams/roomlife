@@ -77,7 +77,7 @@ python3 roomlife_gui.py
 
 **Features:**
 - Real-time state visualization
-  - Needs tracking (hunger, fatigue, warmth, hygiene, mood, stress, energy)
+  - Needs tracking (hunger, fatigue, warmth, hygiene, mood, stress, energy, health, illness, injury)
   - Traits display (discipline, confidence, empathy, fitness, etc.)
   - Utilities status (power, heat, water)
 - Interactive action buttons for all available actions
@@ -235,11 +235,19 @@ Validates if an action can be executed in the current state. Checks:
 - Whether the player has sufficient funds
 - Whether required items are present
 
+If the action is valid, the response includes a preview showing probable outcomes.
+
 ```python
 validation = api.validate_action("shower")
 if not validation.valid:
     print(f"Cannot shower: {validation.reason}")
     print(f"Missing: {validation.missing_requirements}")
+else:
+    # Action is valid - preview is available
+    if validation.preview:
+        print(f"Outcome probabilities: {validation.preview.tier_distribution}")
+        print(f"Expected changes: {validation.preview.delta_ranges}")
+        print(f"Notes: {validation.preview.notes}")
 
 # Unknown actions are rejected
 validation = api.validate_action("invalid_action_xyz")
@@ -288,6 +296,36 @@ def handle_state_change(state: GameStateSnapshot):
 api.subscribe_to_state_changes(handle_state_change)
 ```
 
+##### unsubscribe_from_events(callback: Callable[[EventInfo], None]) → None
+
+Unsubscribe from game events.
+
+```python
+def handle_event(event: EventInfo):
+    print(f"Event: {event.event_id}")
+
+# Subscribe
+api.subscribe_to_events(handle_event)
+
+# Later, unsubscribe
+api.unsubscribe_from_events(handle_event)
+```
+
+##### unsubscribe_from_state_changes(callback: Callable[[GameStateSnapshot], None]) → None
+
+Unsubscribe from state changes.
+
+```python
+def handle_state_change(state: GameStateSnapshot):
+    print(f"State changed at day {state.world.day}")
+
+# Subscribe
+api.subscribe_to_state_changes(handle_state_change)
+
+# Later, unsubscribe
+api.unsubscribe_from_state_changes(handle_state_change)
+```
+
 ## Data Types Reference
 
 ### GameStateSnapshot
@@ -328,6 +366,23 @@ Metadata about an action.
 - `requires_utilities: Optional[List[str]]` - Required utilities
 - `requires_items: Optional[List[str]]` - Required items
 
+### ActionValidation
+
+Result of validating an action before execution.
+
+**Fields:**
+- `valid: bool` - Whether the action can be executed
+- `action_id: str` - The action that was validated
+- `reason: Optional[str]` - Reason why action is invalid (empty if valid)
+- `missing_requirements: List[str]` - List of missing requirements (empty if valid)
+- `preview: Optional[ActionPreview]` - Preview of action outcomes (only present if valid)
+
+**Methods:**
+- `to_dict() → Dict[str, Any]` - Convert to JSON-serializable dict
+
+**Usage:**
+Call `api.validate_action(action_id)` to check if an action can be executed. If valid, the response includes a preview showing probable outcomes.
+
 ### ActionResult
 
 Result of executing an action.
@@ -338,6 +393,21 @@ Result of executing an action.
 - `new_state: GameStateSnapshot` - State after action
 - `events_triggered: List[EventInfo]` - Events from this action
 - `state_changes: Dict[str, Any]` - Summary of changes
+
+### ActionPreview
+
+Preview information for action outcomes, showing probable results before execution.
+
+**Fields:**
+- `tier_distribution: Dict[int, float]` - Probability distribution of outcome tiers (0-100 scale)
+- `delta_ranges: Dict[str, Any]` - Expected ranges of state changes for each affected attribute
+- `notes: List[str]` - Human-readable notes about action effects and requirements
+
+**Methods:**
+- `to_dict() → Dict[str, Any]` - Convert to JSON-serializable dict
+
+**Usage:**
+The preview is included in `ActionValidation` when an action is valid, allowing UIs to show users what might happen before they execute the action.
 
 ### NeedsSnapshot
 
@@ -351,6 +421,9 @@ Player needs (0-100 scale).
 - `mood: int` - Mood level
 - `stress: int` - Stress level
 - `energy: int` - Energy level (calculated from fatigue + fitness)
+- `health: int` - Health level (0-100, decreases when needs are extreme)
+- `illness: int` - Illness level (0-100, higher = more ill)
+- `injury: int` - Injury level (0-100, higher = more injured)
 
 ## Adapter Examples
 
