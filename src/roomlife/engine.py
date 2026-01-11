@@ -878,6 +878,38 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
                     skill_gain=round(gain, 2),
                 )
 
+    elif action_id.startswith("discard_"):
+        # Extract item_id from action_id (e.g., "discard_bed_basic" -> "bed_basic")
+        item_id = action_id[8:]  # Remove "discard_" prefix
+
+        # Find the item in player's inventory at current location
+        item_to_discard = None
+        for item in state.items:
+            if item.item_id == item_id and item.placed_in == state.world.location:
+                item_to_discard = item
+                break
+
+        if item_to_discard is None:
+            _log(state, "action.failed", action_id=action_id, reason="item_not_found")
+        else:
+            # Get item metadata for display name
+            metadata = _get_item_metadata(item_id)
+            item_name = metadata.get("name", item_id) if metadata else item_id
+
+            # Remove item from state (no money given)
+            state.items.remove(item_to_discard)
+
+            # Track minimalism habit (decluttering)
+            _track_habit(state, "minimalism", 2)
+
+            _log(
+                state,
+                "shopping.discard",
+                item_id=item_id,
+                item_name=item_name,
+                condition=item_to_discard.condition,
+            )
+
     else:
         _log(state, "action.unknown", action_id=action_id)
 

@@ -355,6 +355,26 @@ class RoomLifeAPI:
 
             return ActionValidation(valid=True, action_id=action_id)
 
+        # Handle discard actions
+        if action_id.startswith("discard_"):
+            item_id = action_id[8:]  # Remove "discard_" prefix
+
+            # Find the item at current location
+            item_to_discard = None
+            for item in self.state.items:
+                if item.item_id == item_id and item.placed_in == self.state.world.location:
+                    item_to_discard = item
+                    break
+
+            if item_to_discard is None:
+                return ActionValidation(
+                    valid=False,
+                    action_id=action_id,
+                    reason="Item not found at current location",
+                )
+
+            return ActionValidation(valid=True, action_id=action_id)
+
         # List of known non-movement actions
         known_actions = {
             "work", "study", "sleep", "eat_charity_rice", "cook_basic_meal",
@@ -865,5 +885,23 @@ class RoomLifeAPI:
                     },
                     cost_pence=-sell_price,  # Negative cost means gain
                 ))
+
+        # Add discard actions for all items at current location
+        for item in items_at_location:
+            metadata = _get_item_metadata(item.item_id)
+            item_display_name = metadata.get("name", item.item_id.replace('_', ' ').title())
+
+            actions.append(ActionMetadata(
+                action_id=f"discard_{item.item_id}",
+                display_name=f"Discard {item_display_name}",
+                description=f"Permanently discard {item_display_name} ({item.condition}) without selling",
+                category=ActionCategory.SHOPPING,
+                requirements={},
+                effects={
+                    "item_removed": item_display_name,
+                    "habit": "minimalism +2",
+                },
+                cost_pence=0,
+            ))
 
         return actions
