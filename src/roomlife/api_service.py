@@ -269,13 +269,31 @@ class RoomLifeAPI:
 
         # Handle repair actions
         if action_id.startswith("repair_"):
-            item_id = action_id[7:]
-            items_here = self.state.get_items_at(self.state.world.location)
-            item_to_repair = None
-            for item in items_here:
-                if item.item_id == item_id:
-                    item_to_repair = item
-                    break
+            # Extract item_id and index from action_id (e.g., "repair_bed_basic_5" -> "bed_basic", 5)
+            parts = action_id[7:].rsplit('_', 1)  # Remove "repair_" prefix and split from right
+            
+            if len(parts) == 2 and parts[1].isdigit():
+                # New format with index: repair_{item_id}_{index}
+                item_id = parts[0]
+                item_index = int(parts[1])
+                
+                # Get the item by index
+                if 0 <= item_index < len(self.state.items):
+                    item_to_repair = self.state.items[item_index]
+                    # Verify the item matches expectations (correct item_id and location)
+                    if item_to_repair.item_id != item_id or item_to_repair.placed_in != self.state.world.location:
+                        item_to_repair = None
+                else:
+                    item_to_repair = None
+            else:
+                # Legacy format without index: repair_{item_id}
+                item_id = action_id[7:]
+                items_here = self.state.get_items_at(self.state.world.location)
+                item_to_repair = None
+                for item in items_here:
+                    if item.item_id == item_id:
+                        item_to_repair = item
+                        break
 
             if item_to_repair is None:
                 return ActionValidation(
@@ -300,6 +318,80 @@ class RoomLifeAPI:
 
             if self.state.player.money_pence < cost:
                 missing.append(f"need {cost}p (have {self.state.player.money_pence}p)")
+                return ActionValidation(
+                    valid=False,
+                    action_id=action_id,
+                    reason="Insufficient funds",
+                    missing_requirements=missing,
+                )
+
+            return ActionValidation(valid=True, action_id=action_id)
+
+        # Handle sell actions
+        if action_id.startswith("sell_"):
+            from .engine import _get_item_metadata
+            
+            # Extract item_id and index from action_id (e.g., "sell_bed_basic_5" -> "bed_basic", 5)
+            parts = action_id[5:].rsplit('_', 1)  # Remove "sell_" prefix and split from right
+            
+            if len(parts) == 2 and parts[1].isdigit():
+                # New format with index: sell_{item_id}_{index}
+                item_id = parts[0]
+                item_index = int(parts[1])
+                
+                # Get the item by index
+                if 0 <= item_index < len(self.state.items):
+                    item_to_sell = self.state.items[item_index]
+                    # Verify the item matches expectations (correct item_id and location)
+                    if item_to_sell.item_id != item_id or item_to_sell.placed_in != self.state.world.location:
+                        item_to_sell = None
+                else:
+                    item_to_sell = None
+            else:
+                # Legacy format without index: sell_{item_id}
+                item_id = action_id[5:]
+                item_to_sell = None
+                for item in self.state.items:
+                    if item.item_id == item_id and item.placed_in == self.state.world.location:
+                        item_to_sell = item
+                        break
+
+            if item_to_sell is None:
+                return ActionValidation(
+                    valid=False,
+                    action_id=action_id,
+                    reason="Item not found at current location",
+                )
+
+            # Check if item has a price (can be sold)
+            metadata = _get_item_metadata(item_to_sell.item_id)
+            base_price = metadata.get("price", 0)
+            if base_price <= 0:
+                return ActionValidation(
+                    valid=False,
+                    action_id=action_id,
+                    reason="Item cannot be sold (starter item)",
+                )
+
+            return ActionValidation(valid=True, action_id=action_id)
+
+        # Handle purchase actions
+        if action_id.startswith("purchase_"):
+            from .engine import _get_item_metadata
+            
+            item_id = action_id[9:]  # Remove "purchase_" prefix
+            metadata = _get_item_metadata(item_id)
+            
+            if not metadata:
+                return ActionValidation(
+                    valid=False,
+                    action_id=action_id,
+                    reason="Item not found in catalog",
+                )
+            
+            price = metadata.get("price", 0)
+            if self.state.player.money_pence < price:
+                missing.append(f"need {price}p (have {self.state.player.money_pence}p)")
                 return ActionValidation(
                     valid=False,
                     action_id=action_id,
@@ -732,8 +824,11 @@ class RoomLifeAPI:
                     ))
 
         # Add repair actions for items at current location
-        items_at_location = self.state.get_items_at(current_location)
-        for item in items_at_location:
+        # Use enumerate on state.items to track the actual index for unique action_ids
+        for item_index, item in enumerate(self.state.items):
+            if item.placed_in != current_location:
+                continue
+            
             # Only add repair action if item is not pristine
             if item.condition_value < 90:
                 # Calculate repair cost
@@ -745,7 +840,7 @@ class RoomLifeAPI:
 
                 item_display_name = item.item_id.replace('_', ' ').title()
                 actions.append(ActionMetadata(
-                    action_id=f"repair_{item.item_id}",
+                    action_id=f"repair_{item.item_id}_{item_index}",
                     display_name=f"Repair {item_display_name}",
                     description=f"Repair {item_display_name} ({item.condition} → better)",
                     category=ActionCategory.MAINTENANCE,
@@ -796,7 +891,11 @@ class RoomLifeAPI:
                     ))
 
         # Add sell actions for items at current location
-        for item in items_at_location:
+        # Use enumerate on state.items to track the actual index for unique action_ids
+        for item_index, item in enumerate(self.state.items):
+            if item.placed_in != current_location:
+                continue
+                
             metadata = _get_item_metadata(item.item_id)
             base_price = metadata.get("price", 0)
 
@@ -808,7 +907,7 @@ class RoomLifeAPI:
 
                 item_display_name = metadata.get("name", item.item_id.replace('_', ' ').title())
                 actions.append(ActionMetadata(
-                    action_id=f"sell_{item.item_id}",
+                    action_id=f"sell_{item.item_id}_{item_index}",
                     display_name=f"Sell {item_display_name}",
                     description=f"Sell {item_display_name} ({item.condition}) for {sell_price}p (40% of base price)",
                     category=ActionCategory.SHOPPING,

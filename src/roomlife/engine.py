@@ -701,16 +701,33 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
              injury_before=int(initial_injury), injury_after=int(state.player.needs.injury))
 
     elif action_id.startswith("repair_"):
-        # Extract item_id from action_id (e.g., "repair_bed_basic" -> "bed_basic")
-        item_id = action_id[7:]  # Remove "repair_" prefix
-
-        # Find the item at current location
-        items_here = state.get_items_at(state.world.location)
-        item_to_repair = None
-        for item in items_here:
-            if item.item_id == item_id:
-                item_to_repair = item
-                break
+        # Extract item_id and index from action_id (e.g., "repair_bed_basic_5" -> "bed_basic", 5)
+        # Format: repair_{item_id}_{index}
+        parts = action_id[7:].rsplit('_', 1)  # Remove "repair_" prefix and split from right
+        
+        if len(parts) == 2 and parts[1].isdigit():
+            # New format with index: repair_{item_id}_{index}
+            item_id = parts[0]
+            item_index = int(parts[1])
+            
+            # Get the item by index
+            if 0 <= item_index < len(state.items):
+                item_to_repair = state.items[item_index]
+                # Verify the item matches expectations (correct item_id and location)
+                if item_to_repair.item_id != item_id or item_to_repair.placed_in != state.world.location:
+                    item_to_repair = None
+            else:
+                item_to_repair = None
+        else:
+            # Legacy format without index: repair_{item_id}
+            # Find the first matching item at current location (for backward compatibility)
+            item_id = action_id[7:]
+            items_here = state.get_items_at(state.world.location)
+            item_to_repair = None
+            for item in items_here:
+                if item.item_id == item_id:
+                    item_to_repair = item
+                    break
 
         if item_to_repair is None:
             _log(state, "action.failed", action_id=action_id, reason="item_not_found")
@@ -824,21 +841,38 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
                      cost_pence=price, quality=quality, skill_gain=round(gain, 2))
 
     elif action_id.startswith("sell_"):
-        # Extract item_id from action_id (e.g., "sell_bed_basic" -> "bed_basic")
-        item_id = action_id[5:]  # Remove "sell_" prefix
-
-        # Find the item in player's inventory at current location
-        item_to_sell = None
-        for item in state.items:
-            if item.item_id == item_id and item.placed_in == state.world.location:
-                item_to_sell = item
-                break
+        # Extract item_id and index from action_id (e.g., "sell_bed_basic_5" -> "bed_basic", 5)
+        # Format: sell_{item_id}_{index}
+        parts = action_id[5:].rsplit('_', 1)  # Remove "sell_" prefix and split from right
+        
+        if len(parts) == 2 and parts[1].isdigit():
+            # New format with index: sell_{item_id}_{index}
+            item_id = parts[0]
+            item_index = int(parts[1])
+            
+            # Get the item by index
+            if 0 <= item_index < len(state.items):
+                item_to_sell = state.items[item_index]
+                # Verify the item matches expectations (correct item_id and location)
+                if item_to_sell.item_id != item_id or item_to_sell.placed_in != state.world.location:
+                    item_to_sell = None
+            else:
+                item_to_sell = None
+        else:
+            # Legacy format without index: sell_{item_id}
+            # Find the first matching item at current location (for backward compatibility)
+            item_id = action_id[5:]
+            item_to_sell = None
+            for item in state.items:
+                if item.item_id == item_id and item.placed_in == state.world.location:
+                    item_to_sell = item
+                    break
 
         if item_to_sell is None:
             _log(state, "action.failed", action_id=action_id, reason="item_not_found")
         else:
             # Get item metadata to determine base price
-            metadata = _get_item_metadata(item_id)
+            metadata = _get_item_metadata(item_to_sell.item_id)
             base_price = metadata.get("price", 0)
 
             # Calculate sell price: 40% of base price, adjusted by condition
@@ -860,7 +894,7 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
             # Track frugality habit
             _track_habit(state, "frugality", 5)
 
-            _log(state, "shopping.sell", item_id=item_id, item_name=metadata.get("name", item_id),
+            _log(state, "shopping.sell", item_id=item_to_sell.item_id, item_name=metadata.get("name", item_to_sell.item_id),
                  earned_pence=sell_price, condition=item_to_sell.condition, skill_gain=round(gain, 2))
 
     else:
