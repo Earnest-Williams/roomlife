@@ -3,7 +3,7 @@ from __future__ import annotations
 import random
 from dataclasses import asdict
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from .constants import (
     DOCTOR_ILLNESS_RECOVERY,
@@ -24,9 +24,18 @@ from .constants import (
     TRAIT_DRIFT_CONFIGS,
     TRAIT_DRIFT_THRESHOLD,
 )
-from .models import Item, Skill, Space, State
+from .models import Item, Skill, Space, State, generate_instance_id
 from .content_specs import load_spaces, load_actions, load_item_meta
-from .action_engine import validate_action_spec, compute_tier, apply_outcome, apply_consumes
+from .action_call import ActionCall
+from .action_engine import (
+    apply_consumes,
+    apply_outcome,
+    compute_repair_cost,
+    compute_repair_restoration,
+    compute_tier,
+    validate_action_spec,
+)
+from .param_resolver import apply_drop, apply_pickup, select_item_instance
 
 
 def _log(state: State, event_id: str, **params: object) -> None:
@@ -424,12 +433,15 @@ def new_game() -> State:
         metadata = _get_item_metadata(item_id)
         quality = metadata.get("quality", 1.0)
         state.items.append(Item(
+            instance_id=generate_instance_id(),
             item_id=item_id,
+            placed_in=placed_in,
+            container=None,
+            slot=slot,
+            quality=quality,
             condition=condition,
             condition_value=condition_value,
-            placed_in=placed_in,
-            slot=slot,
-            quality=quality
+            bulk=metadata.get("bulk", 1),
         ))
 
     # Validate that the starting location exists in the world
@@ -559,7 +571,12 @@ def _apply_environment(state: State, rng: random.Random) -> None:
             _log(state, "health.warning", health=n.health)
 
 
-def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
+def apply_action(
+    state: State,
+    action_id: str,
+    rng_seed: int = 1,
+    params: Optional[Dict[str, object]] = None,
+) -> None:
     try:
         time_slice_index = TIME_SLICES.index(state.world.slice)
     except ValueError:
@@ -572,21 +589,93 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
 
     # Data-driven action system: Check if action has a YAML spec first
     _ensure_specs_loaded()
-    spec = _ACTION_SPECS.get(action_id) if _ACTION_SPECS else None
+    action_call = ActionCall.from_legacy(action_id) if params is None else ActionCall(action_id, params or {})
+    spec = _ACTION_SPECS.get(action_call.action_id) if _ACTION_SPECS else None
     if spec is not None:
         # Validate action
-        ok, reason, missing = validate_action_spec(state, spec, _ITEM_META)
+        ok, reason, missing = validate_action_spec(state, spec, _ITEM_META, action_call.params)
         if not ok:
             _log(state, "action.failed", action_id=action_id, reason=reason, missing=missing)
         else:
-            # Compute tier
-            tier = compute_tier(state, spec, _ITEM_META, rng_seed=rng_seed)
+            if spec.id == "move":
+                target = action_call.params.get("target_space")
+                current_location = state.world.location
+                if isinstance(target, str) and target in state.spaces:
+                    from_space = state.spaces.get(current_location)
+                    to_space = state.spaces.get(target)
+                    state.world.location = target
+                    tier = compute_tier(state, spec, _ITEM_META, rng_seed=rng_seed)
+                    apply_outcome(state, spec, tier, _ITEM_META, current_tick, emit_events=False)
+                    _log(
+                        state,
+                        "action.move",
+                        from_id=current_location,
+                        to_id=target,
+                        from_location=getattr(from_space, "name", current_location),
+                        to_location=getattr(to_space, "name", target),
+                    )
+                else:
+                    _log(state, "action.failed", action_id=action_id, reason="invalid_target")
+            elif spec.id == "repair_item":
+                item_ref = action_call.params.get("item_ref")
+                item = select_item_instance(state, item_ref) if isinstance(item_ref, dict) else None
+                if item is None:
+                    _log(state, "action.failed", action_id=action_id, reason="invalid_item")
+                elif item.condition_value >= 90:
+                    _log(state, "action.failed", action_id=action_id, reason="item_already_pristine")
+                else:
+                    cost = compute_repair_cost(state, spec, item)
+                    if state.player.money_pence < cost:
+                        _log(state, "action.failed", action_id=action_id, reason="insufficient_funds")
+                    else:
+                        state.player.money_pence -= cost
+                        restoration = compute_repair_restoration(state, spec)
+                        item.condition_value = min(100, item.condition_value + restoration)
+                        _update_item_condition_string(item)
+                        tier = compute_tier(state, spec, _ITEM_META, rng_seed=rng_seed)
+                        apply_outcome(state, spec, tier, _ITEM_META, current_tick, emit_events=False)
+                        outcome = spec.outcomes.get(tier) or spec.outcomes.get(1) or {}
+                        outcome_params = (outcome.get("events", [{}])[0].get("params", {}) or {})
+                        _log(
+                            state,
+                            "action.repair_item",
+                            instance_id=item.instance_id,
+                            item_id=item.item_id,
+                            cost_pence=cost,
+                            restoration=restoration,
+                            **outcome_params,
+                        )
+            elif spec.id == "pick_up_item":
+                item_ref = action_call.params.get("item_ref")
+                item = select_item_instance(state, item_ref) if isinstance(item_ref, dict) else None
+                if item is None:
+                    _log(state, "action.failed", action_id=action_id, reason="invalid_item")
+                else:
+                    ok_pickup, msg = apply_pickup(state, item)
+                    if not ok_pickup:
+                        _log(state, "action.failed", action_id=action_id, reason=msg)
+                    else:
+                        _log(state, "action.pick_up_item", instance_id=item.instance_id, item_id=item.item_id)
+            elif spec.id == "drop_item":
+                item_ref = action_call.params.get("item_ref")
+                item = select_item_instance(state, item_ref) if isinstance(item_ref, dict) else None
+                if item is None:
+                    _log(state, "action.failed", action_id=action_id, reason="invalid_item")
+                else:
+                    ok_drop, msg = apply_drop(state, item)
+                    if not ok_drop:
+                        _log(state, "action.failed", action_id=action_id, reason=msg)
+                    else:
+                        _log(state, "action.drop_item", instance_id=item.instance_id, item_id=item.item_id)
+            else:
+                # Compute tier
+                tier = compute_tier(state, spec, _ITEM_META, rng_seed=rng_seed)
 
-            # Apply consumption
-            apply_consumes(state, spec, _ITEM_META)
+                # Apply consumption
+                apply_consumes(state, spec, _ITEM_META)
 
-            # Apply outcome (includes skill XP with trait modifiers)
-            apply_outcome(state, spec, tier, _ITEM_META, current_tick)
+                # Apply outcome (includes skill XP with trait modifiers)
+                apply_outcome(state, spec, tier, _ITEM_META, current_tick)
 
         # Always advance time and apply environment
         _advance_time(state)
@@ -976,12 +1065,15 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
 
                 # Create new item with pristine condition and quality from metadata
                 new_item = Item(
+                    instance_id=generate_instance_id(),
                     item_id=item_id,
+                    placed_in=state.world.location,
+                    container=None,
+                    slot="floor",  # Default slot
+                    quality=quality,
                     condition="pristine",
                     condition_value=100,
-                    placed_in=state.world.location,
-                    slot="floor",  # Default slot
-                    quality=quality
+                    bulk=metadata.get("bulk", 1),
                 )
                 state.items.append(new_item)
 

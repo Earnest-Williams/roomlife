@@ -20,6 +20,7 @@ class ActionCategory(str, Enum):
     MOVEMENT = "movement"
     SOCIAL = "social"
     SHOPPING = "shopping"
+    INVENTORY = "inventory"
     OTHER = "other"
 
 
@@ -103,11 +104,14 @@ class LocationInfo:
 @dataclass
 class ItemInfo:
     """Information about an item."""
+    instance_id: str
     item_id: str
     condition: str
     condition_value: int
     placed_in: str
     slot: str
+    container: Optional[str] = None
+    bulk: int = 1
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -196,6 +200,21 @@ class ActionValidation:
     action_id: str
     reason: Optional[str] = None
     missing_requirements: List[str] = field(default_factory=list)
+    preview: Optional["ActionPreview"] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        data = asdict(self)
+        if self.preview is not None:
+            data["preview"] = self.preview.to_dict()
+        return data
+
+
+@dataclass
+class ActionPreview:
+    """Preview information for action outcomes."""
+    tier_distribution: Dict[int, float]
+    delta_ranges: Dict[str, Any]
+    notes: List[str]
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

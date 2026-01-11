@@ -8,13 +8,13 @@ validation, and event streaming.
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from .api_types import (
     ActionCategory,
     ActionMetadata,
+    ActionPreview,
     ActionResult,
     ActionValidation,
     AvailableActionsResponse,
@@ -32,7 +32,13 @@ from .constants import SKILL_NAMES, SKILL_TO_APTITUDE, TIME_SLICES
 from .engine import apply_action
 from .models import State
 from .content_specs import load_actions, load_item_meta
-from .action_engine import validate_action_spec
+from .action_engine import (
+    build_preview_notes,
+    preview_delta_ranges,
+    preview_tier_distribution,
+    validate_action_spec,
+)
+from .action_call import ActionCall
 
 
 class RoomLifeAPI:
@@ -152,11 +158,14 @@ class RoomLifeAPI:
             has_window=current_space.has_window,
             connections=current_space.connections,
             items=[ItemInfo(
+                instance_id=item.instance_id,
                 item_id=item.item_id,
                 condition=item.condition,
                 condition_value=item.condition_value,
                 placed_in=item.placed_in,
                 slot=item.slot,
+                container=item.container,
+                bulk=item.bulk,
             ) for item in current_items],
         )
 
@@ -172,11 +181,14 @@ class RoomLifeAPI:
                 has_window=space.has_window,
                 connections=space.connections,
                 items=[ItemInfo(
+                    instance_id=item.instance_id,
                     item_id=item.item_id,
                     condition=item.condition,
                     condition_value=item.condition_value,
                     placed_in=item.placed_in,
                     slot=item.slot,
+                    container=item.container,
+                    bulk=item.bulk,
                 ) for item in space_items],
             )
 
@@ -231,7 +243,7 @@ class RoomLifeAPI:
         """
         return self._get_action_metadata_list()
 
-    def validate_action(self, action_id: str) -> ActionValidation:
+    def validate_action(self, action_id: str, params: Optional[Dict[str, Any]] = None) -> ActionValidation:
         """Validate if an action can be executed in the current state.
 
         Args:
@@ -240,15 +252,29 @@ class RoomLifeAPI:
         Returns:
             ActionValidation with validation result
         """
-        # Data-driven action validation: Check if action has a YAML spec first
-        spec = self._action_specs.get(action_id)
+        action_call = ActionCall.from_legacy(action_id) if params is None else ActionCall(action_id, params)
+        spec = self._action_specs.get(action_call.action_id)
         if spec is not None:
-            ok, reason, missing = validate_action_spec(self.state, spec, self._item_meta)
+            ok, reason, missing = validate_action_spec(self.state, spec, self._item_meta, action_call.params)
+            preview = None
+            if ok:
+                preview = ActionPreview(
+                    tier_distribution=preview_tier_distribution(
+                        self.state,
+                        spec,
+                        self._item_meta,
+                        rng_seed=1,
+                        samples=9,
+                    ),
+                    delta_ranges=preview_delta_ranges(spec),
+                    notes=build_preview_notes(self.state, spec, self._item_meta, action_call),
+                )
             return ActionValidation(
                 valid=ok,
                 action_id=action_id,
                 reason=reason if not ok else "",
                 missing_requirements=missing if not ok else None,
+                preview=preview,
             )
 
         # Legacy hardcoded validation (fallback)
@@ -543,7 +569,12 @@ class RoomLifeAPI:
 
         return ActionValidation(valid=True, action_id=action_id)
 
-    def execute_action(self, action_id: str, rng_seed: Optional[int] = None) -> ActionResult:
+    def execute_action(
+        self,
+        action_id: str,
+        rng_seed: Optional[int] = None,
+        params: Optional[Dict[str, Any]] = None,
+    ) -> ActionResult:
         """Execute an action and return the result.
 
         Args:
@@ -560,7 +591,7 @@ class RoomLifeAPI:
         # Apply action
         if rng_seed is None:
             rng_seed = 1
-        apply_action(self.state, action_id, rng_seed)
+        apply_action(self.state, action_id, rng_seed, params=params)
 
         # Get snapshot after action
         new_snapshot = self.get_state_snapshot()
