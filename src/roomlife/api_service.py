@@ -287,7 +287,8 @@ class RoomLifeAPI:
                     item_to_repair = None
             else:
                 # Legacy format without index: repair_{item_id}
-                item_id = action_id[7:]
+                repair_prefix_len = len("repair_")
+                item_id = action_id[repair_prefix_len:]
                 items_here = self.state.get_items_at(self.state.world.location)
                 item_to_repair = None
                 for item in items_here:
@@ -332,7 +333,8 @@ class RoomLifeAPI:
             from .engine import _get_item_metadata
             
             # Extract item_id and index from action_id (e.g., "sell_bed_basic_5" -> "bed_basic", 5)
-            parts = action_id[5:].rsplit('_', 1)  # Remove "sell_" prefix and split from right
+            sell_prefix_len = len("sell_")
+            parts = action_id[sell_prefix_len:].rsplit('_', 1)  # Remove "sell_" prefix and split from right
             
             if len(parts) == 2 and parts[1].isdigit():
                 # New format with index: sell_{item_id}_{index}
@@ -349,7 +351,8 @@ class RoomLifeAPI:
                     item_to_sell = None
             else:
                 # Legacy format without index: sell_{item_id}
-                item_id = action_id[5:]
+                sell_prefix_len = len("sell_")
+                item_id = action_id[sell_prefix_len:]
                 item_to_sell = None
                 for item in self.state.items:
                     if item.item_id == item_id and item.placed_in == self.state.world.location:
@@ -379,7 +382,8 @@ class RoomLifeAPI:
         if action_id.startswith("purchase_"):
             from .engine import _get_item_metadata
             
-            item_id = action_id[9:]  # Remove "purchase_" prefix
+            purchase_prefix_len = len("purchase_")
+            item_id = action_id[purchase_prefix_len:]  # Remove "purchase_" prefix
             metadata = _get_item_metadata(item_id)
             
             if not metadata:
