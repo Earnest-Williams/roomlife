@@ -375,6 +375,28 @@ class RoomLifeAPI:
 
             return ActionValidation(valid=True, action_id=action_id)
 
+        # Handle job application actions
+        if action_id.startswith("apply_job_"):
+            job_id = action_id[10:]  # Remove "apply_job_" prefix
+            from .constants import JOBS
+
+            if job_id not in JOBS:
+                return ActionValidation(
+                    valid=False,
+                    action_id=action_id,
+                    reason="Job not found",
+                )
+
+            # Check if already have this job
+            if self.state.player.current_job == job_id:
+                return ActionValidation(
+                    valid=False,
+                    action_id=action_id,
+                    reason="Already employed in this position",
+                )
+
+            return ActionValidation(valid=True, action_id=action_id)
+
         # List of known non-movement actions
         known_actions = {
             "work", "study", "sleep", "eat_charity_rice", "cook_basic_meal",
