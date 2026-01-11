@@ -1,0 +1,208 @@
+schema_version: 1
+
+# Item metadata defining capabilities, requirements, and durability
+# This extends the existing items.yaml with mechanical properties
+
+items:
+  # Kitchen appliances - heat sources
+  - id: kettle
+    name: "Kettle"
+    tags: ["appliance", "kitchen"]
+    provides: ["heat_source"]
+    requires_utilities: ["power"]
+    durability:
+      max: 100
+      degrade_per_use_default: 4
+
+  - id: microwave
+    name: "Microwave"
+    tags: ["appliance", "kitchen"]
+    provides: ["heat_source"]
+    requires_utilities: ["power"]
+    durability:
+      max: 100
+      degrade_per_use_default: 3
+
+  - id: stove_basic
+    name: "Basic stove"
+    tags: ["appliance", "kitchen"]
+    provides: ["heat_source", "cook_surface"]
+    requires_utilities: ["power"]
+    durability:
+      max: 100
+      degrade_per_use_default: 3
+
+  - id: stove_premium
+    name: "Premium stove"
+    tags: ["appliance", "kitchen"]
+    provides: ["heat_source", "cook_surface"]
+    requires_utilities: ["power"]
+    durability:
+      max: 150
+      degrade_per_use_default: 2
+
+  - id: fridge
+    name: "Fridge"
+    tags: ["appliance", "kitchen"]
+    provides: ["cold_storage"]
+    requires_utilities: ["power"]
+    durability:
+      max: 200
+      degrade_per_use_default: 1
+
+  # Cleaning items
+  - id: cleaning_supplies
+    name: "Cleaning supplies"
+    tags: ["tool", "cleaning"]
+    provides: ["cleaning_kit"]
+    requires_utilities: []
+    durability:
+      max: 50
+      degrade_per_use_default: 2
+
+  - id: vacuum_cleaner
+    name: "Vacuum cleaner"
+    tags: ["appliance", "cleaning"]
+    provides: ["cleaning_kit", "deep_clean_tool"]
+    requires_utilities: ["power"]
+    durability:
+      max: 100
+      degrade_per_use_default: 3
+
+  # Workspace items
+  - id: desk_basic
+    name: "Basic desk"
+    tags: ["furniture", "work", "study"]
+    provides: ["workspace"]
+    requires_utilities: []
+    durability:
+      max: 100
+      degrade_per_use_default: 1
+
+  - id: desk_premium
+    name: "Premium desk"
+    tags: ["furniture", "work", "study"]
+    provides: ["workspace"]
+    requires_utilities: []
+    durability:
+      max: 150
+      degrade_per_use_default: 1
+
+  - id: chair_basic
+    name: "Basic chair"
+    tags: ["furniture", "work", "study"]
+    provides: ["seating"]
+    requires_utilities: []
+    durability:
+      max: 80
+      degrade_per_use_default: 2
+
+  - id: chair_ergonomic
+    name: "Ergonomic chair"
+    tags: ["furniture", "work", "study"]
+    provides: ["seating", "ergonomic_support"]
+    requires_utilities: []
+    durability:
+      max: 120
+      degrade_per_use_default: 1
+
+  # Bedroom items
+  - id: bed_basic
+    name: "Basic bed"
+    tags: ["furniture", "sleep"]
+    provides: ["sleeping_surface"]
+    requires_utilities: []
+    durability:
+      max: 100
+      degrade_per_use_default: 1
+
+  - id: bed_premium
+    name: "Premium bed"
+    tags: ["furniture", "sleep"]
+    provides: ["sleeping_surface", "comfort"]
+    requires_utilities: []
+    durability:
+      max: 150
+      degrade_per_use_default: 1
+
+  # Storage and organization
+  - id: meal_prep_containers
+    name: "Meal prep containers"
+    tags: ["tool", "kitchen"]
+    provides: ["food_storage"]
+    requires_utilities: []
+    durability:
+      max: 60
+      degrade_per_use_default: 1
+
+  # Consumables (future-ready for inventory system)
+  - id: meal_portion
+    name: "Meal portion"
+    tags: ["consumable", "food"]
+    provides: ["prepared_meal"]
+    requires_utilities: []
+    durability: null  # Consumables don't degrade, they're consumed
+
+  - id: leftovers_portion
+    name: "Leftovers"
+    tags: ["consumable", "food"]
+    provides: ["prepared_meal"]
+    requires_utilities: []
+    durability: null
+
+  # Exercise equipment
+  - id: dumbbells
+    name: "Dumbbells"
+    tags: ["exercise"]
+    provides: ["strength_training"]
+    requires_utilities: []
+    durability:
+      max: 200
+      degrade_per_use_default: 1
+
+  - id: yoga_mat
+    name: "Yoga mat"
+    tags: ["exercise"]
+    provides: ["flexibility_training"]
+    requires_utilities: []
+    durability:
+      max: 80
+      degrade_per_use_default: 2
+
+  # Technology
+  - id: laptop_basic
+    name: "Basic laptop"
+    tags: ["laptop", "tech"]
+    provides: ["computing", "workspace"]
+    requires_utilities: ["power"]
+    durability:
+      max: 100
+      degrade_per_use_default: 2
+
+  - id: laptop_premium
+    name: "Premium laptop"
+    tags: ["laptop", "tech"]
+    provides: ["computing", "workspace"]
+    requires_utilities: ["power"]
+    durability:
+      max: 150
+      degrade_per_use_default: 1
+
+  # Lighting
+  - id: desk_lamp
+    name: "Desk lamp"
+    tags: ["lighting"]
+    provides: ["task_lighting"]
+    requires_utilities: ["power"]
+    durability:
+      max: 100
+      degrade_per_use_default: 1
+
+  - id: floor_lamp
+    name: "Floor lamp"
+    tags: ["lighting"]
+    provides: ["ambient_lighting"]
+    requires_utilities: ["power"]
+    durability:
+      max: 100
+      degrade_per_use_default: 1

@@ -1,0 +1,495 @@
+schema_version: 1
+
+# Tier convention:
+# 0 = fail/partial, 1 = normal, 2 = good, 3 = great
+# The engine will compute a tier deterministically from skill + context + items + rng_seed.
+
+actions:
+  - id: cook_basic_meal
+    display_name: "Cook basic meal"
+    description: "Cook a simple meal. Better tools and nutrition skill improve results."
+    category: survival
+    time_minutes: 60
+
+    # "Hard" requirements: must be satisfied or action is invalid.
+    requires:
+      money_pence: 300
+      location:
+        any_space_tags: ["kitchen", "room"]   # allow cooking in room if you have a portable tool
+      utilities:
+        all_true: ["power"]                  # power must be on for most cooking devices
+      items:
+        any_provides: ["heat_source"]        # e.g., kettle, stove, microwave
+      skills_min:
+        nutrition: 0                         # allow at any level; skill affects tier
+
+    # "Soft" modifiers: affect tier and deltas but do not block the action.
+    modifiers:
+      primary_skill: nutrition
+      secondary_skills:
+        resource_management: 0.20
+      traits:
+        creativity: 0.15
+        frugality: 0.10
+      item_provides_weights:
+        heat_source: 0.70
+        cook_surface: 0.30
+
+    # Costs/consumption on success tiers (or on all tiers if specified).
+    consumes:
+      money_pence: 300
+      item_durability:
+        provides: "heat_source"
+        amount: 4
+
+    outcomes:
+      0:
+        events: [{ id: "action.failed", params: { reason: "meal_failed" } }]
+        deltas:
+          needs:
+            stress: 2
+            mood: -1
+      1:
+        events: [{ id: "action.cook_basic_meal", params: { quality: "normal" } }]
+        deltas:
+          needs:
+            hunger: -35
+            mood: 3
+          skills_xp:
+            nutrition: 1.5
+      2:
+        events: [{ id: "action.cook_basic_meal", params: { quality: "good" } }]
+        deltas:
+          needs:
+            hunger: -45
+            mood: 5
+            stress: -2
+          skills_xp:
+            nutrition: 1.8
+      3:
+        events: [{ id: "action.cook_basic_meal", params: { quality: "great" } }]
+        deltas:
+          needs:
+            hunger: -55
+            mood: 7
+            stress: -4
+          skills_xp:
+            nutrition: 2.2
+        grants:
+          items:
+            - { item_id: "leftovers_portion", quantity: 1, placed_in: "inventory" }
+
+  - id: meal_prep
+    display_name: "Meal prep"
+    description: "Batch cook portions. Requires containers; better cooking setup yields more."
+    category: survival
+    time_minutes: 120
+    requires:
+      money_pence: 600
+      location:
+        any_space_tags: ["kitchen"]
+      utilities:
+        all_true: ["power"]
+      items:
+        all_provides: ["cook_surface"]
+        has_item_ids: ["meal_prep_containers"]
+      skills_min:
+        nutrition: 5
+    modifiers:
+      primary_skill: nutrition
+      secondary_skills:
+        resource_management: 0.35
+    consumes:
+      money_pence: 600
+      item_durability:
+        provides: "cook_surface"
+        amount: 5
+    outcomes:
+      0:
+        events: [{ id: "action.failed", params: { reason: "prep_failed" } }]
+        deltas:
+          needs:
+            stress: 3
+            mood: -2
+      1:
+        events: [{ id: "action.meal_prep", params: { portions: 3 } }]
+        deltas:
+          needs:
+            hunger: -20
+            mood: 2
+          skills_xp:
+            nutrition: 2.0
+            resource_management: 0.6
+        grants:
+          items: [{ item_id: "meal_portion", quantity: 3, placed_in: "inventory" }]
+      2:
+        events: [{ id: "action.meal_prep", params: { portions: 4 } }]
+        deltas:
+          needs:
+            hunger: -25
+            mood: 3
+            stress: -1
+          skills_xp:
+            nutrition: 2.3
+            resource_management: 0.8
+        grants:
+          items: [{ item_id: "meal_portion", quantity: 4, placed_in: "inventory" }]
+      3:
+        events: [{ id: "action.meal_prep", params: { portions: 5 } }]
+        deltas:
+          needs:
+            hunger: -30
+            mood: 4
+            stress: -2
+          skills_xp:
+            nutrition: 2.7
+            resource_management: 1.0
+        grants:
+          items: [{ item_id: "meal_portion", quantity: 5, placed_in: "inventory" }]
+
+  - id: eat_meal_portion
+    display_name: "Eat meal portion"
+    description: "Eat a prepared portion."
+    category: survival
+    time_minutes: 15
+    requires:
+      items:
+        has_item_ids: ["meal_portion"]
+    consumes:
+      inventory_items:
+        - { item_id: "meal_portion", quantity: 1 }
+    modifiers:
+      primary_skill: nutrition
+      secondary_skills: {}
+    outcomes:
+      1:
+        events: [{ id: "action.eat_meal_portion", params: {} }]
+        deltas:
+          needs:
+            hunger: -40
+            mood: 2
+          skills_xp:
+            nutrition: 0.3
+      2:
+        events: [{ id: "action.eat_meal_portion", params: { bonus: "balanced" } }]
+        deltas:
+          needs:
+            hunger: -45
+            mood: 3
+            stress: -1
+          skills_xp:
+            nutrition: 0.4
+      3:
+        events: [{ id: "action.eat_meal_portion", params: { bonus: "great" } }]
+        deltas:
+          needs:
+            hunger: -50
+            mood: 4
+            stress: -2
+          skills_xp:
+            nutrition: 0.5
+
+  - id: shower
+    display_name: "Shower"
+    description: "Clean up. Requires a shower fixture and water."
+    category: survival
+    time_minutes: 25
+    requires:
+      location:
+        any_space_tags: ["bathroom"]
+        requires_fixture: "shower"
+      utilities:
+        all_true: ["water"]
+    modifiers:
+      primary_skill: maintenance
+      secondary_skills: {}
+    outcomes:
+      1:
+        events: [{ id: "action.shower", params: {} }]
+        deltas:
+          needs:
+            hygiene: -40
+            mood: 5
+          skills_xp:
+            maintenance: 0.2
+      2:
+        events: [{ id: "action.shower", params: { bonus: "refreshing" } }]
+        deltas:
+          needs:
+            hygiene: -45
+            mood: 6
+            stress: -1
+          skills_xp:
+            maintenance: 0.3
+      3:
+        events: [{ id: "action.shower", params: { bonus: "very_refreshing" } }]
+        deltas:
+          needs:
+            hygiene: -50
+            mood: 7
+            stress: -2
+          skills_xp:
+            maintenance: 0.4
+
+  - id: clean_room
+    display_name: "Clean room"
+    description: "Tidy up. Cleaning kit improves efficiency."
+    category: maintenance
+    time_minutes: 45
+    requires:
+      location:
+        any_space_tags: ["room"]
+    modifiers:
+      primary_skill: maintenance
+      secondary_skills:
+        resource_management: 0.15
+      item_provides_weights:
+        cleaning_kit: 1.0
+    consumes:
+      item_durability:
+        provides: "cleaning_kit"
+        amount: 2
+    outcomes:
+      1:
+        events: [{ id: "action.clean_room", params: {} }]
+        deltas:
+          needs:
+            hygiene: -5
+            mood: 8
+            stress: -3
+          skills_xp:
+            maintenance: 2.0
+      2:
+        events: [{ id: "action.clean_room", params: { quality: "good" } }]
+        deltas:
+          needs:
+            hygiene: -7
+            mood: 10
+            stress: -5
+          skills_xp:
+            maintenance: 2.3
+      3:
+        events: [{ id: "action.clean_room", params: { quality: "great" } }]
+        deltas:
+          needs:
+            hygiene: -9
+            mood: 12
+            stress: -7
+          skills_xp:
+            maintenance: 2.7
+
+  - id: deep_clean
+    display_name: "Deep clean"
+    description: "A thorough clean. Takes time but reduces stress and illness risk (future)."
+    category: maintenance
+    time_minutes: 120
+    requires:
+      location:
+        any_space_tags: ["room"]
+      items:
+        any_provides: ["cleaning_kit"]
+      skills_min:
+        maintenance: 10
+    modifiers:
+      primary_skill: maintenance
+      secondary_skills:
+        resource_management: 0.20
+    consumes:
+      item_durability:
+        provides: "cleaning_kit"
+        amount: 5
+    outcomes:
+      1:
+        events: [{ id: "action.deep_clean", params: {} }]
+        deltas:
+          needs:
+            mood: 12
+            stress: -10
+            fatigue: 8
+          skills_xp:
+            maintenance: 3.0
+      2:
+        events: [{ id: "action.deep_clean", params: { quality: "good" } }]
+        deltas:
+          needs:
+            mood: 14
+            stress: -12
+            fatigue: 7
+          skills_xp:
+            maintenance: 3.3
+      3:
+        events: [{ id: "action.deep_clean", params: { quality: "great" } }]
+        deltas:
+          needs:
+            mood: 16
+            stress: -14
+            fatigue: 6
+          skills_xp:
+            maintenance: 3.7
+
+  - id: repair_item
+    display_name: "Repair item"
+    description: "Repair an item at your location. Better maintenance improves restoration."
+    category: maintenance
+    time_minutes: 60
+    parameters:
+      - name: item_id
+        type: item_at_location
+        required: true
+    requires:
+      skills_min:
+        maintenance: 0
+    modifiers:
+      primary_skill: maintenance
+      secondary_skills: {}
+    # Cost is dynamic; handled by code hook below (still "data-driven" via formula config).
+    dynamic:
+      cost_formula:
+        base_per_damage_pence: 10
+        min_cost_pence: 50
+        skill_discount_per_point: 2
+      restoration_formula:
+        base: 30
+        per_skill_point: 0.5
+    outcomes:
+      0:
+        events: [{ id: "action.failed", params: { reason: "repair_invalid" } }]
+      1:
+        events: [{ id: "action.repair_item", params: {} }]
+        deltas:
+          skills_xp:
+            maintenance: 2.0
+      2:
+        events: [{ id: "action.repair_item", params: { quality: "good" } }]
+        deltas:
+          skills_xp:
+            maintenance: 2.3
+      3:
+        events: [{ id: "action.repair_item", params: { quality: "great" } }]
+        deltas:
+          skills_xp:
+            maintenance: 2.7
+
+  - id: budget_review
+    display_name: "Budget review"
+    description: "Plan spending. Reduces stress and improves future bill negotiation chances."
+    category: other
+    time_minutes: 45
+    requires:
+      items:
+        any_provides: ["workspace"]    # desks provide this
+    modifiers:
+      primary_skill: resource_management
+      secondary_skills: {}
+    outcomes:
+      1:
+        events: [{ id: "action.budget_review", params: { insight: "basic" } }]
+        deltas:
+          needs:
+            stress: -6
+            mood: 1
+          skills_xp:
+            resource_management: 1.2
+      2:
+        events: [{ id: "action.budget_review", params: { insight: "good" } }]
+        deltas:
+          needs:
+            stress: -8
+            mood: 2
+          skills_xp:
+            resource_management: 1.5
+      3:
+        events: [{ id: "action.budget_review", params: { insight: "great" } }]
+        deltas:
+          needs:
+            stress: -10
+            mood: 3
+          skills_xp:
+            resource_management: 1.8
+
+  - id: negotiate_utilities
+    display_name: "Negotiate utilities"
+    description: "Attempt to reduce your utilities cost next time you pay."
+    category: other
+    time_minutes: 30
+    requires:
+      skills_min:
+        resource_management: 5
+        persuasion: 3
+    modifiers:
+      primary_skill: persuasion
+      secondary_skills:
+        resource_management: 0.40
+    outcomes:
+      0:
+        events: [{ id: "action.negotiate_utilities", params: { result: "fail" } }]
+        deltas:
+          needs:
+            stress: 2
+      1:
+        events: [{ id: "action.negotiate_utilities", params: { result: "small_discount" } }]
+        deltas:
+          skills_xp:
+            persuasion: 1.0
+            resource_management: 0.4
+          flags:
+            utilities_discount_pence: 100
+      2:
+        events: [{ id: "action.negotiate_utilities", params: { result: "discount" } }]
+        deltas:
+          skills_xp:
+            persuasion: 1.2
+            resource_management: 0.5
+          flags:
+            utilities_discount_pence: 200
+      3:
+        events: [{ id: "action.negotiate_utilities", params: { result: "big_discount" } }]
+        deltas:
+          skills_xp:
+            persuasion: 1.4
+            resource_management: 0.6
+          flags:
+            utilities_discount_pence: 350
+
+  - id: study_focused
+    display_name: "Focused study"
+    description: "A concentrated study session. Better ergonomics reduces fatigue."
+    category: survival
+    time_minutes: 90
+    requires:
+      items:
+        any_provides: ["workspace"]
+      skills_min:
+        ergonomics: 0
+    modifiers:
+      primary_skill: ergonomics
+      secondary_skills:
+        logic: 0.30
+    outcomes:
+      1:
+        events: [{ id: "action.study_focused", params: { intensity: "normal" } }]
+        deltas:
+          needs:
+            fatigue: 14
+            mood: -1
+          skills_xp:
+            ergonomics: 1.0
+            logic: 0.6
+      2:
+        events: [{ id: "action.study_focused", params: { intensity: "good" } }]
+        deltas:
+          needs:
+            fatigue: 12
+            mood: 0
+          skills_xp:
+            ergonomics: 1.2
+            logic: 0.7
+      3:
+        events: [{ id: "action.study_focused", params: { intensity: "great" } }]
+        deltas:
+          needs:
+            fatigue: 10
+            mood: 1
+          skills_xp:
+            ergonomics: 1.4
+            logic: 0.8
