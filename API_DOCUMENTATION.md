@@ -96,6 +96,20 @@ python3 roomlife_gui.py
 
 The GUI uses the event subscription system to automatically update when state changes occur.
 
+### CLI (Typer) Entry Points
+
+The CLI is a lightweight way to inspect state and execute actions.
+
+```bash
+python -m roomlife status
+python -m roomlife act work --seed 42
+python -m roomlife dump --save saves/alt_save.yaml
+```
+
+Notes:
+- Defaults to `saves/save_001.yaml` when `--save` is not provided.
+- `act` requires a positive integer seed for deterministic execution.
+
 ### Basic Usage
 
 ```python
