@@ -865,8 +865,18 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
                 # Track frugality habit
                 _track_habit(state, "frugality", 5)
 
-                _log(state, "shopping.sell", item_id=item_id, item_name=metadata.get("name", item_id),
-                     earned_pence=sell_price, condition=item_to_sell.condition, skill_gain=round(gain, 2))
+                sold_item_id = item_to_sell.item_id
+                item_name = metadata.get("name", sold_item_id) if metadata else sold_item_id
+
+                _log(
+                    state,
+                    "shopping.sell",
+                    item_id=sold_item_id,
+                    item_name=item_name,
+                    earned_pence=sell_price,
+                    condition=item_to_sell.condition,
+                    skill_gain=round(gain, 2),
+                )
 
     else:
         _log(state, "action.unknown", action_id=action_id)
