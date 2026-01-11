@@ -395,6 +395,18 @@ class RoomLifeAPI:
                     reason="Already employed in this position",
                 )
 
+            # Check if player meets job requirements
+            from .engine import _check_job_requirements
+            meets_requirements, reason = _check_job_requirements(self.state, job_id)
+            if not meets_requirements:
+                missing.append(f"requirements not met: {reason}")
+                return ActionValidation(
+                    valid=False,
+                    action_id=action_id,
+                    reason=f"Requirements not met: {reason}",
+                    missing_requirements=missing,
+                )
+
             return ActionValidation(valid=True, action_id=action_id)
 
         # List of known non-movement actions
