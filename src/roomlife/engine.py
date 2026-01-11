@@ -28,14 +28,11 @@ from .models import Item, Skill, Space, State, generate_instance_id
 from .content_specs import load_spaces, load_actions, load_item_meta
 from .action_call import ActionCall
 from .action_engine import (
-    apply_consumes,
-    apply_outcome,
-    compute_repair_cost,
-    compute_repair_restoration,
-    compute_tier,
+    degrade_item_condition,
+    execute_action,
+    update_item_condition,
     validate_action_spec,
 )
-from .param_resolver import apply_drop, apply_pickup, select_item_instance
 
 
 def _log(state: State, event_id: str, **params: object) -> None:
@@ -193,30 +190,6 @@ def _get_item_effectiveness(item: Item) -> float:
     return condition_mult * item.quality
 
 
-def _update_item_condition_string(item: Item) -> None:
-    """Update the condition string based on condition_value."""
-    if item.condition_value >= 90:
-        item.condition = "pristine"
-    elif item.condition_value >= 70:
-        item.condition = "used"
-    elif item.condition_value >= 40:
-        item.condition = "worn"
-    elif item.condition_value >= 20:
-        item.condition = "broken"
-    else:
-        item.condition = "filthy"
-
-
-def _degrade_item(item: Item, base_degradation: int = 5) -> None:
-    """Degrade an item's condition based on use."""
-    # Worse condition items degrade faster
-    if item.condition_value < 40:
-        degradation = int(base_degradation * 1.5)
-    else:
-        degradation = base_degradation
-
-    item.condition_value = max(0, item.condition_value - degradation)
-    _update_item_condition_string(item)
 
 
 def _calculate_health(state: State) -> None:
@@ -381,15 +354,36 @@ def _ensure_specs_loaded() -> None:
 
     if _ACTION_SPECS is None:
         actions_path = data_dir / "actions.yaml"
-        _ACTION_SPECS = load_actions(actions_path) if actions_path.exists() else {}
+        if actions_path.exists():
+            try:
+                _ACTION_SPECS = load_actions(actions_path)
+            except ValueError as exc:
+                print(f"Warning: Failed to load actions.yaml: {exc}")
+                _ACTION_SPECS = {}
+        else:
+            _ACTION_SPECS = {}
 
     if _ITEM_META is None:
         items_path = data_dir / "items_meta.yaml"
-        _ITEM_META = load_item_meta(items_path) if items_path.exists() else {}
+        if items_path.exists():
+            try:
+                _ITEM_META = load_item_meta(items_path)
+            except ValueError as exc:
+                print(f"Warning: Failed to load items_meta.yaml: {exc}")
+                _ITEM_META = {}
+        else:
+            _ITEM_META = {}
 
     if _SPACE_SPECS is None:
         spaces_path = data_dir / "spaces.yaml"
-        _SPACE_SPECS = load_spaces(spaces_path) if spaces_path.exists() else {}
+        if spaces_path.exists():
+            try:
+                _SPACE_SPECS = load_spaces(spaces_path)
+            except ValueError as exc:
+                print(f"Warning: Failed to load spaces.yaml: {exc}")
+                _SPACE_SPECS = {}
+        else:
+            _SPACE_SPECS = {}
 
 
 def new_game() -> State:
@@ -627,85 +621,7 @@ def apply_action(
         if not ok:
             _log(state, "action.failed", action_id=action_id, reason=reason, missing=missing)
         else:
-            if spec.id == "move":
-                target = action_call.params.get("target_space")
-                current_location = state.world.location
-                if isinstance(target, str) and target in state.spaces:
-                    from_space = state.spaces.get(current_location)
-                    to_space = state.spaces.get(target)
-                    state.world.location = target
-                    tier = compute_tier(state, spec, _ITEM_META, rng_seed=rng_seed)
-                    apply_outcome(state, spec, tier, _ITEM_META, current_tick, emit_events=False)
-                    _log(
-                        state,
-                        "action.move",
-                        from_id=current_location,
-                        to_id=target,
-                        from_location=getattr(from_space, "name", current_location),
-                        to_location=getattr(to_space, "name", target),
-                    )
-                else:
-                    _log(state, "action.failed", action_id=action_id, reason="invalid_target")
-            elif spec.id == "repair_item":
-                item_ref = action_call.params.get("item_ref")
-                item = select_item_instance(state, item_ref) if isinstance(item_ref, dict) else None
-                if item is None:
-                    _log(state, "action.failed", action_id=action_id, reason="invalid_item")
-                elif item.condition_value >= 90:
-                    _log(state, "action.failed", action_id=action_id, reason="item_already_pristine")
-                else:
-                    cost = compute_repair_cost(state, spec, item)
-                    if state.player.money_pence < cost:
-                        _log(state, "action.failed", action_id=action_id, reason="insufficient_funds")
-                    else:
-                        state.player.money_pence -= cost
-                        restoration = compute_repair_restoration(state, spec)
-                        item.condition_value = min(100, item.condition_value + restoration)
-                        _update_item_condition_string(item)
-                        tier = compute_tier(state, spec, _ITEM_META, rng_seed=rng_seed)
-                        apply_outcome(state, spec, tier, _ITEM_META, current_tick, emit_events=False)
-                        outcome = spec.outcomes.get(tier) or spec.outcomes.get(1) or {}
-                        outcome_params = (outcome.get("events", [{}])[0].get("params", {}) or {})
-                        _log(
-                            state,
-                            "action.repair_item",
-                            instance_id=item.instance_id,
-                            item_id=item.item_id,
-                            cost_pence=cost,
-                            restoration=restoration,
-                            **outcome_params,
-                        )
-            elif spec.id == "pick_up_item":
-                item_ref = action_call.params.get("item_ref")
-                item = select_item_instance(state, item_ref) if isinstance(item_ref, dict) else None
-                if item is None:
-                    _log(state, "action.failed", action_id=action_id, reason="invalid_item")
-                else:
-                    ok_pickup, msg = apply_pickup(state, item)
-                    if not ok_pickup:
-                        _log(state, "action.failed", action_id=action_id, reason=msg)
-                    else:
-                        _log(state, "action.pick_up_item", instance_id=item.instance_id, item_id=item.item_id)
-            elif spec.id == "drop_item":
-                item_ref = action_call.params.get("item_ref")
-                item = select_item_instance(state, item_ref) if isinstance(item_ref, dict) else None
-                if item is None:
-                    _log(state, "action.failed", action_id=action_id, reason="invalid_item")
-                else:
-                    ok_drop, msg = apply_drop(state, item)
-                    if not ok_drop:
-                        _log(state, "action.failed", action_id=action_id, reason=msg)
-                    else:
-                        _log(state, "action.drop_item", instance_id=item.instance_id, item_id=item.item_id)
-            else:
-                # Compute tier
-                tier = compute_tier(state, spec, _ITEM_META, rng_seed=rng_seed)
-
-                # Apply consumption
-                apply_consumes(state, spec, _ITEM_META)
-
-                # Apply outcome (includes skill XP with trait modifiers)
-                apply_outcome(state, spec, tier, _ITEM_META, current_tick)
+            execute_action(state, spec, _ITEM_META, action_call, rng_seed, current_tick)
 
         # Always advance time and apply environment
         _advance_time(state)
@@ -760,7 +676,7 @@ def apply_action(
             _track_habit(state, "confidence", 8)
 
             # Degrade desk with use
-            _degrade_item(desk, base_degradation=3)
+            degrade_item_condition(desk, base_degradation=3)
 
             _log(state, "action.work",
                  earned_pence=earnings,
@@ -789,7 +705,7 @@ def apply_action(
             _track_habit(state, "discipline", 15)
 
             # Degrade desk with use
-            _degrade_item(desk, base_degradation=2)
+            degrade_item_condition(desk, base_degradation=2)
 
             _log(state, "action.study", skill_gain=round(gain, 2),
                  item_condition=desk.condition, item_effectiveness=round(item_effectiveness, 2))
@@ -812,7 +728,7 @@ def apply_action(
             state.player.needs.stress = max(0, int(state.player.needs.stress - introspection_stress_reduction))
 
             # Degrade bed with use
-            _degrade_item(bed, base_degradation=2)
+            degrade_item_condition(bed, base_degradation=2)
 
             _log(state, "action.sleep", fatigue_recovered=total_recovery,
                  item_condition=bed.condition, item_effectiveness=round(item_effectiveness, 2))
@@ -898,7 +814,7 @@ def apply_action(
                 gain = _gain_skill_xp(state, "nutrition", 1.5, current_tick)
 
                 # Degrade cooking item with use
-                _degrade_item(cooking_item, base_degradation=4)
+                degrade_item_condition(cooking_item, base_degradation=4)
 
                 _log(state, "action.cook_basic_meal", cost_pence=cost, hunger_reduced=hunger_reduction,
                      skill_gain=round(gain, 2), item_condition=cooking_item.condition,
@@ -1030,7 +946,7 @@ def apply_action(
                 # Restore item condition
                 old_condition = item_to_repair.condition
                 item_to_repair.condition_value = min(100, item_to_repair.condition_value + total_restoration)
-                _update_item_condition_string(item_to_repair)
+                update_item_condition(item_to_repair)
 
                 # Gain maintenance skill
                 gain = _gain_skill_xp(state, "maintenance", 2.0, current_tick)
