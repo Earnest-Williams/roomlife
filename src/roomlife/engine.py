@@ -789,12 +789,12 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
 
         # Load item metadata
         metadata = _get_item_metadata(item_id)
-        if not metadata or metadata["price"] == 0:
+        price = metadata.get("price", 0)
+        if not metadata or price <= 0:
             _log(state, "action.failed", action_id=action_id, reason="item_not_for_sale")
         else:
-            price = metadata["price"]
-            quality = metadata["quality"]
-            item_name = metadata["name"]
+            quality = metadata.get("quality", 1.0)
+            item_name = metadata.get("name", item_id)
 
             # Check if player has enough money
             if state.player.money_pence < price:
