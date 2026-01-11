@@ -1,10 +1,14 @@
-According to a document from **2026-01-11** (your `project_bundle.md` snapshot), here’s a concrete, “do-this-next” elaboration of each item, with code snippets that fit your current architecture and avoid the exact silent breakages you called out.
+According to a document from **2026-01-11** (your `project_bundle.md` snapshot), here's a concrete, "do-this-next" elaboration of each item, with code snippets that fit your current architecture and avoid the exact silent breakages you called out.
+
+**Status Update (2026-01-11):** Items 1-4 and 7-8 have been completed. See commit cf28659 for details.
 
 ---
 
 ## Must-do (stability + correctness)
 
-### 1) Add a “content integrity” check that runs in tests/CI
+### 1) ✅ Add a "content integrity" check that runs in tests/CI
+
+**Status:** COMPLETED
 
 #### Why this is worth doing
 
@@ -130,7 +134,9 @@ def test_any_provides_providers_are_real_item_ids():
 
 ---
 
-### 2) Make duplicate action IDs a hard error in `load_actions`
+### 2) ✅ Make duplicate action IDs a hard error in `load_actions`
+
+**Status:** COMPLETED
 
 #### Why this is a correctness bug today
 
@@ -222,7 +228,9 @@ Result: authors get a **fast, line-numbered** failure instead of silent overwrit
 
 ---
 
-### 3) Normalize/align IDs between `items.yaml` and `items_meta.yaml`
+### 3) ✅ Normalize/align IDs between `items.yaml` and `items_meta.yaml`
+
+**Status:** COMPLETED
 
 #### Why this matters mechanically (not just cleanliness)
 
@@ -318,9 +326,11 @@ Then apply it when loading old saves / items, not in the meta itself.
 
 ---
 
-### 4) Resolve `repair_item` to one parameter style (keep `item_ref`)
+### 4) ✅ Resolve `repair_item` to one parameter style (keep `item_ref`)
 
-#### Why it’s currently inconsistent
+**Status:** COMPLETED
+
+#### Why it's currently inconsistent
 
 You *already* lean heavily toward `item_ref`:
 
@@ -360,7 +370,9 @@ Keep the existing `item_ref` version:
 
 ## Next (usability + scaling)
 
-### 5) Generalize “parameterized action listing” for `pick_up_item` and `drop_item`
+### 5) ✅ Generalize "parameterized action listing" for `pick_up_item` and `drop_item`
+
+**Status:** COMPLETED
 
 #### Current behavior
 
@@ -536,7 +548,9 @@ class RoomLifeAPI:
 
 ---
 
-### 7) Expand parameter validation support (or tighten it)
+### 7) ✅ Expand parameter validation support (or tighten it)
+
+**Status:** COMPLETED
 
 #### The current issue
 
@@ -599,7 +613,9 @@ If you *do* want `item_at_location`, implement it end-to-end (resolution + valid
 
 ---
 
-### 8) Lean into previews for player clarity
+### 8) ✅ Lean into previews for player clarity
+
+**Status:** COMPLETED
 
 #### What you already have
 
