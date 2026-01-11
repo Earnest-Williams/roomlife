@@ -789,12 +789,12 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
 
         # Load item metadata
         metadata = _get_item_metadata(item_id)
-        if not metadata or metadata["price"] == 0:
+        price = metadata.get("price", 0)
+        if not metadata or price <= 0:
             _log(state, "action.failed", action_id=action_id, reason="item_not_for_sale")
         else:
-            price = metadata["price"]
-            quality = metadata["quality"]
-            item_name = metadata["name"]
+            quality = metadata.get("quality", 1.0)
+            item_name = metadata.get("name", item_id)
 
             # Check if player has enough money
             if state.player.money_pence < price:
@@ -842,8 +842,8 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
             metadata = _get_item_metadata(item_id)
             base_price = metadata.get("price", 0)
 
-            # Items with negative price cannot be sold
-            if base_price < 0:
+            # Items with non-positive price cannot be sold
+            if base_price <= 0:
                 _log(state, "action.failed", action_id=action_id, reason="item_not_sellable")
             else:
                 # Calculate sell price: 40% of base price, adjusted by condition
@@ -877,6 +877,38 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
                     condition=item_to_sell.condition,
                     skill_gain=round(gain, 2),
                 )
+
+    elif action_id.startswith("discard_"):
+        # Extract item_id from action_id (e.g., "discard_bed_basic" -> "bed_basic")
+        item_id = action_id[8:]  # Remove "discard_" prefix
+
+        # Find the item in player's inventory at current location
+        item_to_discard = None
+        for item in state.items:
+            if item.item_id == item_id and item.placed_in == state.world.location:
+                item_to_discard = item
+                break
+
+        if item_to_discard is None:
+            _log(state, "action.failed", action_id=action_id, reason="item_not_found")
+        else:
+            # Get item metadata for display name
+            metadata = _get_item_metadata(item_id)
+            item_name = metadata.get("name", item_id) if metadata else item_id
+
+            # Remove item from state (no money given)
+            state.items.remove(item_to_discard)
+
+            # Track minimalism habit (decluttering)
+            _track_habit(state, "minimalism", 2)
+
+            _log(
+                state,
+                "shopping.discard",
+                item_id=item_id,
+                item_name=item_name,
+                condition=item_to_discard.condition,
+            )
 
     else:
         _log(state, "action.unknown", action_id=action_id)

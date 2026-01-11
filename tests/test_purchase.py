@@ -69,14 +69,14 @@ def test_insufficient_funds_rejected():
 def test_cannot_purchase_items_with_price_zero():
     """Test that items with price 0 cannot be purchased."""
     state = new_game()
-    
+
     # Give player plenty of money
     state.player.money_pence = 10000
     initial_money = state.player.money_pence
     initial_item_count = len(state.items)
-    
-    # Try to purchase a basic bed (price is 0, starter item)
-    apply_action(state, "purchase_bed_basic", rng_seed=123)
+
+    # Try to purchase a non-existent item (which gets price 0 from fallback)
+    apply_action(state, "purchase_nonexistent_item", rng_seed=123)
     
     # Money should not be deducted
     assert state.player.money_pence == initial_money
