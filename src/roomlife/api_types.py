@@ -188,6 +188,10 @@ class ActionMetadata:
     requires_location: Optional[str] = None
     requires_utilities: Optional[List[str]] = None
     requires_items: Optional[List[str]] = None
+    params: Optional[Dict[str, Any]] = None
+    available: bool = True
+    why_locked: Optional[str] = None
+    missing_requirements: Optional[List[str]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
