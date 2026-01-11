@@ -83,6 +83,7 @@ def _default_skills_detailed() -> Dict[str, Skill]:
 class Player:
     money_pence: int = 5000
     utilities_paid: bool = True
+    current_job: str = "recycling_collector"  # Job system - start with worst job
     needs: Needs = field(default_factory=Needs)
     skills: Dict[str, int] = field(default_factory=lambda: {"general": 0})
     relationships: Dict[str, int] = field(default_factory=dict)
