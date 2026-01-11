@@ -54,6 +54,27 @@ def _get_skill_value(state: State, skill_name: str) -> float:
     return skill.value if skill else 0.0
 
 
+def _get_skill_value_with_aptitude(state: State, skill_name: str, aptitude_weight: float = 1.0) -> float:
+    """Get a skill value adjusted by its governing aptitude.
+
+    Args:
+        state: Game state
+        skill_name: Name of the skill
+        aptitude_weight: Weight applied to the aptitude modifier (0.0-1.0)
+
+    Returns:
+        Skill value scaled by aptitude.
+    """
+    base = _get_skill_value(state, skill_name)
+    if not skill_name or aptitude_weight <= 0.0:
+        return base
+    aptitude_name = SKILL_TO_APTITUDE.get(skill_name)
+    if not aptitude_name:
+        return base
+    aptitude_value = getattr(state.player.aptitudes, aptitude_name, 1.0)
+    return base * (1.0 + (aptitude_value - 1.0) * aptitude_weight)
+
+
 def _get_health_penalty(state: State) -> float:
     """Calculate health penalty multiplier for actions.
 
@@ -134,7 +155,7 @@ def _find_best_item_for_provides(
         meta = item_meta.get(it.item_id)
         if not meta:
             continue
-        if provides not in meta.provides:
+        if provides not in meta.provides and provides not in meta.tags:
             continue
 
         # Score by condition and quality
@@ -285,11 +306,12 @@ def compute_tier(
     """
     mods = spec.modifiers or {}
     primary = mods.get("primary_skill")
-    base = _get_skill_value(state, primary) if primary else 0.0
+    aptitude_weight = float(mods.get("aptitude_weight", 1.0))
+    base = _get_skill_value_with_aptitude(state, primary, aptitude_weight) if primary else 0.0
 
     # Add weighted secondary skills
     for s, w in (mods.get("secondary_skills") or {}).items():
-        base += _get_skill_value(state, s) * float(w)
+        base += _get_skill_value_with_aptitude(state, s, aptitude_weight) * float(w)
 
     # Add weighted traits (0-100 scale)
     for t, w in (mods.get("traits") or {}).items():
@@ -493,20 +515,35 @@ def apply_consumes(
     dur = cons.get("item_durability")
     if dur:
         prov = dur.get("provides")
-        amt = int(dur.get("amount", 1))
+        amt = dur.get("amount")
         it = _find_best_item_for_provides(state, item_meta, prov, state.world.location)
-        if it is not None:
-            it.condition_value = max(0, int(getattr(it, "condition_value", 100)) - amt)
+        if it is None:
+            _log(state, "item.durability_missing", provides=prov)
+            return
 
-            # Update condition string based on condition_value
-            if it.condition_value <= 0:
-                it.condition = "broken"
-            elif it.condition_value < 35:
-                it.condition = "worn"
-            elif it.condition_value < 70:
-                it.condition = "used"
-            else:
-                it.condition = "pristine"
+        if amt is None:
+            meta = item_meta.get(it.item_id)
+            default_amt = None
+            if meta and meta.durability:
+                default_amt = meta.durability.get("degrade_per_use_default")
+            amt = int(default_amt or 1)
+
+        it.condition_value = max(0, int(getattr(it, "condition_value", 100)) - int(amt))
+        _update_item_condition(it)
+
+
+def _update_item_condition(item: Item) -> None:
+    """Update item condition string from condition value."""
+    if item.condition_value >= 90:
+        item.condition = "pristine"
+    elif item.condition_value >= 70:
+        item.condition = "used"
+    elif item.condition_value >= 40:
+        item.condition = "worn"
+    elif item.condition_value >= 20:
+        item.condition = "broken"
+    else:
+        item.condition = "filthy"
 
 
 def compute_repair_cost(state: State, spec: ActionSpec, item: Item) -> int:
