@@ -764,7 +764,6 @@ class RoomLifeAPI:
         categories = catalog.get("categories", [])
 
         for category in categories:
-            category_name = category.get("name", "Items")
             category_items = category.get("items", [])
 
             for item_id in category_items:
