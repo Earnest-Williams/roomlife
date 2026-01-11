@@ -270,7 +270,9 @@ class RoomLifeAPI:
         # Handle repair actions
         if action_id.startswith("repair_"):
             # Extract item_id and index from action_id (e.g., "repair_bed_basic_5" -> "bed_basic", 5)
-            parts = action_id[7:].rsplit('_', 1)  # Remove "repair_" prefix and split from right
+            # Format: repair_{item_id}_{index}
+            repair_prefix_len = len("repair_")
+            parts = action_id[repair_prefix_len:].rsplit('_', 1)  # Remove "repair_" prefix and split from right
             
             if len(parts) == 2 and parts[1].isdigit():
                 # New format with index: repair_{item_id}_{index}
@@ -287,7 +289,6 @@ class RoomLifeAPI:
                     item_to_repair = None
             else:
                 # Legacy format without index: repair_{item_id}
-                repair_prefix_len = len("repair_")
                 item_id = action_id[repair_prefix_len:]
                 items_here = self.state.get_items_at(self.state.world.location)
                 item_to_repair = None
@@ -351,7 +352,6 @@ class RoomLifeAPI:
                     item_to_sell = None
             else:
                 # Legacy format without index: sell_{item_id}
-                sell_prefix_len = len("sell_")
                 item_id = action_id[sell_prefix_len:]
                 item_to_sell = None
                 for item in self.state.items:

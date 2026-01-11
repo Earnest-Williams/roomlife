@@ -722,7 +722,6 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
         else:
             # Legacy format without index: repair_{item_id}
             # Find the first matching item at current location (for backward compatibility)
-            repair_prefix_len = len("repair_")
             item_id = action_id[repair_prefix_len:]
             items_here = state.get_items_at(state.world.location)
             item_to_repair = None
@@ -803,7 +802,8 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
 
     elif action_id.startswith("purchase_"):
         # Extract item_id from action_id (e.g., "purchase_bed_standard" -> "bed_standard")
-        item_id = action_id[9:]  # Remove "purchase_" prefix
+        purchase_prefix_len = len("purchase_")
+        item_id = action_id[purchase_prefix_len:]  # Remove "purchase_" prefix
 
         # Load item metadata
         metadata = _get_item_metadata(item_id)
@@ -864,7 +864,6 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
         else:
             # Legacy format without index: sell_{item_id}
             # Find the first matching item at current location (for backward compatibility)
-            sell_prefix_len = len("sell_")
             item_id = action_id[sell_prefix_len:]
             item_to_sell = None
             for item in state.items:
