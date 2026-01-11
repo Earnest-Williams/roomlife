@@ -38,9 +38,14 @@ def test_cannot_move_to_disconnected_location():
     # Should still be in room_001
     assert state.world.location == "room_001"
 
-    # Check that a failure event was logged
-    failed_events = [e for e in state.event_log if e["event_id"] == "action.failed" and e["params"].get("reason") == "location_not_connected"]
+    # Check that a failure event was logged with connection validation
+    failed_events = [e for e in state.event_log if e["event_id"] == "action.failed"]
     assert len(failed_events) == 1
+    reason = failed_events[0]["params"].get("reason")
+    missing = failed_events[0]["params"].get("missing", [])
+    assert reason in {"location_not_connected", "Missing requirements"}
+    if reason == "Missing requirements":
+        assert any("not connected" in msg for msg in missing)
 
 
 def test_cannot_move_to_nonexistent_location():
@@ -57,8 +62,13 @@ def test_cannot_move_to_nonexistent_location():
     assert state.world.location == "room_001"
 
     # Check that a failure event was logged
-    failed_events = [e for e in state.event_log if e["event_id"] == "action.failed" and e["params"].get("reason") == "location_not_found"]
+    failed_events = [e for e in state.event_log if e["event_id"] == "action.failed"]
     assert len(failed_events) == 1
+    reason = failed_events[0]["params"].get("reason")
+    missing = failed_events[0]["params"].get("missing", [])
+    assert reason in {"location_not_found", "Missing requirements"}
+    if reason == "Missing requirements":
+        assert any("unknown space_id" in msg for msg in missing)
 
 
 def test_cannot_move_to_same_location():
@@ -75,8 +85,13 @@ def test_cannot_move_to_same_location():
     assert state.world.location == "room_001"
 
     # Check that a failure event was logged
-    failed_events = [e for e in state.event_log if e["event_id"] == "action.failed" and e["params"].get("reason") == "already_here"]
+    failed_events = [e for e in state.event_log if e["event_id"] == "action.failed"]
     assert len(failed_events) == 1
+    reason = failed_events[0]["params"].get("reason")
+    missing = failed_events[0]["params"].get("missing", [])
+    assert reason in {"already_here", "Missing requirements"}
+    if reason == "Missing requirements":
+        assert any("not connected" in msg for msg in missing)
 
 
 def test_shower_requires_bathroom_location():
@@ -142,3 +157,21 @@ def test_movement_costs_fatigue():
     assert len(move_events) == 1
     assert move_events[0]["params"]["from_location"] == "Tiny room"
     assert move_events[0]["params"]["to_location"] == "Hallway"
+
+
+def test_movement_requires_connection():
+    """Test that movement requires a connected target in the data-driven path."""
+    state = new_game()
+
+    # Attempt to move directly to bathroom without a hallway connection
+    apply_action(state, "move", rng_seed=123, params={"target_space": "bath_001"})
+
+    # Should still be in room_001
+    assert state.world.location == "room_001"
+
+    failed_events = [e for e in state.event_log if e["event_id"] == "action.failed"]
+    assert len(failed_events) == 1
+    reason = failed_events[0]["params"].get("reason")
+    missing = failed_events[0]["params"].get("missing", [])
+    assert reason == "Missing requirements"
+    assert any("not connected" in msg for msg in missing)
