@@ -2,11 +2,27 @@
 
 A text-first lifesim engine where most play is reflected in a single room (and later a renderer can be attached).
 
-## Setup (sdc + direnv)
+## Requirements
+- Python 3.11+
+- Dependencies listed in `environment.yml` (pyyaml, rich, typer, pytest, ruff)
+
+## Setup
+
+### Option 1: sdc + direnv
 From the project directory, run:
 - `sdc` for a new environment
 - `sdc -u` to update an existing environment from `environment.yml`
 - `sdc -f` to remove and recreate the environment
+
+### Option 2: Manual setup
+If you are not using sdc, create an environment and install dependencies:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+pip install pyyaml rich typer
+```
 
 ## Run
 
@@ -38,6 +54,11 @@ python -m roomlife act eat_charity_rice
 python -m roomlife dump
 ```
 
+Notes:
+- The CLI defaults to `saves/save_001.yaml` for load/save.
+- Use `--save path/to/save.yaml` to target a different save file.
+- Use `--seed N` for deterministic action execution.
+
 ### GUI Application
 Launch the graphical interface:
 ```bash
@@ -60,6 +81,7 @@ Features:
 - `saves/`: save snapshots
 - `tests/`: determinism and invariants
 - `examples/`: API usage examples (basic, CLI, REST server, event streaming)
+- `examples/README.md`: How to run each example
 - `roomlife_gui.py`: Tkinter GUI application
 - `launch.sh`: Launcher script for all components
 - `API_DOCUMENTATION.md`: Complete API reference

@@ -17,6 +17,8 @@ Demonstrates core API functionality:
 **Run:**
 ```bash
 PYTHONPATH=src python examples/api_basic_usage.py
+# Or, after installing the package:
+python examples/api_basic_usage.py
 ```
 
 ### 2. Event Streaming (`api_event_streaming.py`)
@@ -30,6 +32,8 @@ Shows how to subscribe to events and state changes for reactive UIs:
 **Run:**
 ```bash
 PYTHONPATH=src python examples/api_event_streaming.py
+# Or, after installing the package:
+python examples/api_event_streaming.py
 ```
 
 ### 3. Interactive CLI Demo (`api_cli_demo.py`)
@@ -43,6 +47,8 @@ Full interactive command-line interface using the API:
 **Run:**
 ```bash
 PYTHONPATH=src python examples/api_cli_demo.py
+# Or, after installing the package:
+python examples/api_cli_demo.py
 ```
 
 **Controls:**
@@ -61,6 +67,8 @@ Demonstrates JSON serialization for web APIs:
 **Run:**
 ```bash
 PYTHONPATH=src python examples/api_json_export.py
+# Or, after installing the package:
+python examples/api_json_export.py
 ```
 
 **Output files:**
@@ -133,6 +141,8 @@ pip install flask flask-cors
 **Run:**
 ```bash
 PYTHONPATH=src python examples/api_rest_server.py
+# Or, after installing the package:
+python examples/api_rest_server.py
 ```
 
 **Endpoints:**
