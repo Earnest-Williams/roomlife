@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import asdict
+from pathlib import Path
 from typing import Dict, List, Tuple
 
 from .constants import (
@@ -24,6 +25,8 @@ from .constants import (
     TRAIT_DRIFT_THRESHOLD,
 )
 from .models import Item, Skill, Space, State
+from .content_specs import load_spaces, load_actions, load_item_meta
+from .action_engine import validate_action_spec, compute_tier, apply_outcome, apply_consumes
 
 
 def _log(state: State, event_id: str, **params: object) -> None:
@@ -70,6 +73,11 @@ def _load_item_tags() -> Dict[str, List[str]]:
 _ITEM_TAGS_CACHE = None
 _ITEM_METADATA_CACHE = None
 _SHOP_CATALOG_CACHE = None
+
+# Data-driven action system caches
+_ACTION_SPECS = None
+_ITEM_META = None
+_SPACE_SPECS = None
 
 
 def _get_item_tags(item_id: str) -> List[str]:
@@ -355,13 +363,53 @@ def _calculate_current_tick(state: State) -> int:
     return state.world.day * 4 + slice_index
 
 
+def _ensure_specs_loaded() -> None:
+    """Ensure action specs and item metadata are loaded from YAML."""
+    global _ACTION_SPECS, _ITEM_META, _SPACE_SPECS
+
+    # Find data directory relative to this file
+    data_dir = Path(__file__).parent.parent.parent / "data"
+
+    if _ACTION_SPECS is None:
+        actions_path = data_dir / "actions.yaml"
+        _ACTION_SPECS = load_actions(actions_path) if actions_path.exists() else {}
+
+    if _ITEM_META is None:
+        items_path = data_dir / "items_meta.yaml"
+        _ITEM_META = load_item_meta(items_path) if items_path.exists() else {}
+
+    if _SPACE_SPECS is None:
+        spaces_path = data_dir / "spaces.yaml"
+        _SPACE_SPECS = load_spaces(spaces_path) if spaces_path.exists() else {}
+
+
 def new_game() -> State:
     state = State()
-    state.spaces = {
-        "room_001": Space("room_001", "Tiny room", "room", 14, False, ["hall_001"]),
-        "hall_001": Space("hall_001", "Hallway", "shared", 12, False, ["room_001", "bath_001"]),
-        "bath_001": Space("bath_001", "Shared bathroom", "shared", 13, False, ["hall_001"]),
-    }
+
+    # Load spaces from YAML
+    _ensure_specs_loaded()
+    if _SPACE_SPECS:
+        # Convert SpaceSpec to Space model
+        state.spaces = {}
+        for spec in _SPACE_SPECS.values():
+            state.spaces[spec.id] = Space(
+                space_id=spec.id,
+                name=spec.name,
+                kind=spec.kind,
+                base_temperature_c=spec.base_temperature_c,
+                has_window=spec.has_window,
+                connections=spec.connections,
+                tags=spec.tags,
+                fixtures=spec.fixtures,
+                utilities_available=spec.utilities_available,
+            )
+    else:
+        # Fallback to hardcoded spaces if YAML not available
+        state.spaces = {
+            "room_001": Space("room_001", "Tiny room", "room", 14, False, ["hall_001"]),
+            "hall_001": Space("hall_001", "Hallway", "shared", 12, False, ["room_001", "bath_001"]),
+            "bath_001": Space("bath_001", "Shared bathroom", "shared", 13, False, ["hall_001"]),
+        }
 
     # Create starter items with quality from metadata
     # Items start at ~50% condition (worn) to reflect their degraded state
@@ -522,6 +570,30 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
     rng = random.Random(rng_seed + state.world.day * 97 + time_slice_index)
     current_tick = _calculate_current_tick(state)
 
+    # Data-driven action system: Check if action has a YAML spec first
+    _ensure_specs_loaded()
+    spec = _ACTION_SPECS.get(action_id) if _ACTION_SPECS else None
+    if spec is not None:
+        # Validate action
+        ok, reason, missing = validate_action_spec(state, spec, _ITEM_META)
+        if not ok:
+            _log(state, "action.failed", action_id=action_id, reason=reason, missing=missing)
+        else:
+            # Compute tier
+            tier = compute_tier(state, spec, _ITEM_META, rng_seed=rng_seed)
+
+            # Apply consumption
+            apply_consumes(state, spec, _ITEM_META)
+
+            # Apply outcome (includes skill XP - for now just logs, will integrate with _gain_skill_xp later)
+            apply_outcome(state, spec, tier, _ITEM_META)
+
+        # Always advance time and apply environment
+        _advance_time(state)
+        _apply_environment(state, rng)
+        return
+
+    # Legacy hardcoded actions (fallback)
     if action_id == "work":
         # Check for desk/workspace
         desk = _find_item_with_tag(state, "work")

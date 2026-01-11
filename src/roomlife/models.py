@@ -72,6 +72,10 @@ class Space:
     base_temperature_c: int
     has_window: bool
     connections: List[str] = field(default_factory=list)
+    # Extended fields for data-driven action system
+    tags: List[str] = field(default_factory=list)
+    fixtures: List[str] = field(default_factory=list)
+    utilities_available: List[str] = field(default_factory=list)
 
 
 def _default_skills_detailed() -> Dict[str, Skill]:

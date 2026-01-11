@@ -1,3 +1,5 @@
+schema_version: 2
+
 spaces:
   - id: room_001
     name: Tiny room
@@ -5,15 +7,26 @@ spaces:
     base_temperature_c: 14
     has_window: false
     connections: [hall_001]
+    tags: ["room", "sleep_area"]
+    fixtures: ["bed_spot", "desk_spot"]
+    utilities_available: ["power", "heat"]
+
   - id: hall_001
     name: Hallway
     kind: shared
     base_temperature_c: 12
     has_window: false
     connections: [room_001, bath_001]
+    tags: ["hallway", "transit"]
+    fixtures: []
+    utilities_available: ["power"]
+
   - id: bath_001
     name: Shared bathroom
     kind: shared
     base_temperature_c: 13
     has_window: false
     connections: [hall_001]
+    tags: ["bathroom"]
+    fixtures: ["shower", "sink", "toilet"]
+    utilities_available: ["water", "heat", "power"]

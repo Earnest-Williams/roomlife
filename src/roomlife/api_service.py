@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import asdict
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from .api_types import (
@@ -30,6 +31,8 @@ from .api_types import (
 from .constants import SKILL_NAMES, SKILL_TO_APTITUDE, TIME_SLICES
 from .engine import apply_action
 from .models import State
+from .content_specs import load_actions, load_item_meta
+from .action_engine import validate_action_spec
 
 
 class RoomLifeAPI:
@@ -48,6 +51,14 @@ class RoomLifeAPI:
         self.state = state
         self._event_listeners: List[Callable[[EventInfo], None]] = []
         self._state_change_listeners: List[Callable[[GameStateSnapshot], None]] = []
+
+        # Load data-driven action specs
+        data_dir = Path(__file__).parent.parent.parent / "data"
+        actions_path = data_dir / "actions.yaml"
+        items_meta_path = data_dir / "items_meta.yaml"
+
+        self._action_specs = load_actions(actions_path) if actions_path.exists() else {}
+        self._item_meta = load_item_meta(items_meta_path) if items_meta_path.exists() else {}
 
     def get_state_snapshot(self) -> GameStateSnapshot:
         """Get a complete snapshot of the current game state.
@@ -229,6 +240,18 @@ class RoomLifeAPI:
         Returns:
             ActionValidation with validation result
         """
+        # Data-driven action validation: Check if action has a YAML spec first
+        spec = self._action_specs.get(action_id)
+        if spec is not None:
+            ok, reason, missing = validate_action_spec(self.state, spec, self._item_meta)
+            return ActionValidation(
+                valid=ok,
+                action_id=action_id,
+                reason=reason if not ok else "",
+                missing_requirements=missing if not ok else None,
+            )
+
+        # Legacy hardcoded validation (fallback)
         from .engine import _find_item_with_tag
         missing = []
 
