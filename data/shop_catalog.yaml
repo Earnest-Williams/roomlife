@@ -17,6 +17,7 @@ categories:
       - desk_basic
       - desk_standard
       - desk_premium
+      - chair_basic
       - chair_ergonomic
       - chair_luxury
 
@@ -33,6 +34,7 @@ categories:
     id: lighting
     description: Better lighting improves work efficiency and mood
     items:
+      - lamp_desk
       - lamp_floor
       - lamp_premium
 
@@ -57,6 +59,7 @@ categories:
     id: bathroom
     description: Enhance your hygiene routine
     items:
+      - towel
       - towel_premium
       - bath_mat
 
@@ -64,6 +67,7 @@ categories:
     id: exercise
     description: Stay fit and healthy at home
     items:
+      - yoga_mat
       - dumbbells
       - exercise_bike
 
@@ -71,12 +75,14 @@ categories:
     id: cleaning
     description: Keep your space clean more efficiently
     items:
+      - cleaning_supplies
       - vacuum
 
   - name: Study & Tech
     id: study
     description: Boost your learning and work capabilities
     items:
+      - bookshelf
       - bookshelf_large
       - computer
       - computer_premium
