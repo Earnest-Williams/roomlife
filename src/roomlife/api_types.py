@@ -192,9 +192,13 @@ class ActionMetadata:
     available: bool = True
     why_locked: Optional[str] = None
     missing_requirements: Optional[List[str]] = None
+    preview: Optional["ActionPreview"] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        data = asdict(self)
+        if self.preview is not None:
+            data["preview"] = self.preview.to_dict()
+        return data
 
 
 @dataclass

@@ -413,49 +413,6 @@ actions:
           skills_xp:
             maintenance: 3.7
 
-  - id: repair_item
-    display_name: "Repair item"
-    description: "Repair an item at your location. Better maintenance improves restoration."
-    category: maintenance
-    time_minutes: 60
-    parameters:
-      - name: item_id
-        type: item_at_location
-        required: true
-    requires:
-      skills_min:
-        maintenance: 0
-    modifiers:
-      primary_skill: maintenance
-      secondary_skills: {}
-    # Cost is dynamic; handled by code hook below (still "data-driven" via formula config).
-    dynamic:
-      cost_formula:
-        base_per_damage_pence: 10
-        min_cost_pence: 50
-        skill_discount_per_point: 2
-      restoration_formula:
-        base: 30
-        per_skill_point: 0.5
-    outcomes:
-      0:
-        events: [{ id: "action.failed", params: { reason: "repair_invalid" } }]
-      1:
-        events: [{ id: "action.repair_item", params: {} }]
-        deltas:
-          skills_xp:
-            maintenance: 2.0
-      2:
-        events: [{ id: "action.repair_item", params: { quality: "good" } }]
-        deltas:
-          skills_xp:
-            maintenance: 2.3
-      3:
-        events: [{ id: "action.repair_item", params: { quality: "great" } }]
-        deltas:
-          skills_xp:
-            maintenance: 2.7
-
   - id: budget_review
     display_name: "Budget review"
     description: "Plan spending. Reduces stress and improves future bill negotiation chances."
