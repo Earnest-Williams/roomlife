@@ -7,7 +7,19 @@ from typing import Dict
 import yaml
 
 from .constants import SKILL_NAMES
-from .models import Aptitudes, Item, Needs, Player, Skill, Space, State, Traits, Utilities, World
+from .models import (
+    Aptitudes,
+    Item,
+    Needs,
+    Player,
+    Skill,
+    Space,
+    State,
+    Traits,
+    Utilities,
+    World,
+    generate_instance_id,
+)
 
 
 def save_state(state: State, path: Path) -> None:
@@ -53,6 +65,7 @@ def load_state(path: Path) -> State:
     s.player = Player(
         money_pence=p["money_pence"],
         utilities_paid=p["utilities_paid"],
+        carry_capacity=p.get("carry_capacity", 12),
         needs=Needs(**p["needs"]),
         skills=dict(p["skills"]),
         relationships=dict(p["relationships"]),
@@ -63,6 +76,15 @@ def load_state(path: Path) -> State:
     )
     s.utilities = Utilities(**raw["utilities"])
     s.spaces = {k: Space(**v) for k, v in raw["spaces"].items()}
-    s.items = [Item(**it) for it in raw["items"]]
+    items = []
+    for it in raw["items"]:
+        item_data = dict(it)
+        item_data.setdefault("instance_id", generate_instance_id())
+        item_data.setdefault("container", None)
+        item_data.setdefault("bulk", 1)
+        item_data.setdefault("quality", 1.0)
+        item_data.setdefault("slot", "floor")
+        items.append(Item(**item_data))
+    s.items = items
     s.event_log = list(raw["event_log"])
     return s

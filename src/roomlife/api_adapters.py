@@ -68,14 +68,24 @@ class RESTAdapter(VisualizationAdapter):
             "total_count": len(actions),
         }
 
-    def validate_action(self, action_id: str) -> Dict[str, Any]:
+    def validate_action(self, action_id: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """GET /api/actions/{action_id}/validate - Validate action."""
-        validation = self.api.validate_action(action_id)
+        validation = self.api.validate_action(action_id, params=params)
         return validation.to_dict()
 
-    def execute_action(self, action_id: str, rng_seed: Optional[int] = None) -> Dict[str, Any]:
+    def execute_action(
+        self,
+        action_id: str,
+        rng_seed: Optional[int] = None,
+        params: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """POST /api/actions/{action_id}/execute - Execute action."""
-        result = self.api.execute_action(action_id, rng_seed)
+        result = self.api.execute_action(action_id, rng_seed, params=params)
+        return result.to_dict()
+
+    def execute_action_new(self, action_id: str, params: Dict[str, Any]) -> Dict[str, Any]:
+        """POST /api/action/execute - Execute action with parameters."""
+        result = self.api.execute_action(action_id, params=params)
         return result.to_dict()
 
 

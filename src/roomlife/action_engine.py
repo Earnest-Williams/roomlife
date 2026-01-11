@@ -9,9 +9,10 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple
 import random
 
-from .models import State, Item
+from .models import State, Item, generate_instance_id
 from .content_specs import ActionSpec, ItemMeta
 from .constants import SKILL_TO_APTITUDE
+from .param_resolver import select_item_instance, validate_connected_to_param, validate_parameters
 
 
 def _log(state: State, event_id: str, **params: Any) -> None:
@@ -123,7 +124,11 @@ def _find_best_item_for_provides(
     best: Optional[Item] = None
     best_score = -1.0
 
-    for it in state.get_items_at(location):
+    candidates = [
+        it for it in state.items
+        if it.placed_in == location or it.placed_in == "inventory"
+    ]
+    for it in candidates:
         meta = item_meta.get(it.item_id)
         if not meta:
             continue
@@ -143,6 +148,7 @@ def validate_action_spec(
     state: State,
     spec: ActionSpec,
     item_meta: Dict[str, ItemMeta],
+    params: Dict[str, Any] | None = None,
 ) -> Tuple[bool, str, List[str]]:
     """Validate if an action can be executed.
 
@@ -156,6 +162,7 @@ def validate_action_spec(
     """
     missing: List[str] = []
     req = spec.requires or {}
+    params = params or {}
 
     # Money requirement
     money_req = req.get("money_pence")
@@ -188,6 +195,12 @@ def validate_action_spec(
             if fixture not in fixtures:
                 missing.append(f"fixture {fixture}")
 
+    # Custom param-linked requirements
+    if "connected_to_param" in loc_req:
+        ok, msg = validate_connected_to_param(state, loc_req["connected_to_param"], params)
+        if not ok:
+            missing.append(msg)
+
     # Item requirements
     item_req = req.get("items", {})
 
@@ -211,10 +224,11 @@ def validate_action_spec(
     # has_item_ids: specific items must be present
     has_item_ids = item_req.get("has_item_ids", [])
     if has_item_ids:
-        here = {it.item_id for it in state.get_items_at(state.world.location)}
-        # TODO: Add inventory support when implemented
-        inv = set(getattr(state.player, "inventory", []))
-        owned = here | inv
+        owned = {
+            it.item_id
+            for it in state.items
+            if it.placed_in in (state.world.location, "inventory")
+        }
         for iid in has_item_ids:
             if iid not in owned:
                 missing.append(f"need item {iid}")
@@ -224,6 +238,22 @@ def validate_action_spec(
     for skill, minv in skills_min.items():
         if _get_skill_value(state, skill) < float(minv):
             missing.append(f"skill {skill}>={minv}")
+
+    params_ok, params_missing = validate_parameters(state, spec, params)
+    if not params_ok:
+        missing.extend(params_missing)
+
+    if spec.id == "repair_item":
+        item_ref = params.get("item_ref")
+        item = select_item_instance(state, item_ref) if isinstance(item_ref, dict) else None
+        if item is None:
+            missing.append("repair item not found")
+        elif item.condition_value >= 90:
+            missing.append("item already pristine")
+        else:
+            cost = compute_repair_cost(state, spec, item)
+            if state.player.money_pence < cost:
+                missing.append(f"need {cost}p (have {state.player.money_pence}p)")
 
     if missing:
         return False, "Missing requirements", missing
@@ -296,6 +326,7 @@ def apply_outcome(
     tier: int,
     item_meta: Dict[str, ItemMeta],
     current_tick: int,
+    emit_events: bool = True,
 ) -> None:
     """Apply the outcome effects for a given tier.
 
@@ -346,17 +377,73 @@ def apply_outcome(
 
         for _ in range(qty):
             state.items.append(Item(
+                instance_id=generate_instance_id(),
                 item_id=item_id,
-                condition="pristine",
-                condition_value=100,
                 placed_in=("inventory" if placed_in == "inventory" else placed_in),
+                container=None,
                 slot="floor",
                 quality=1.0,
+                condition="pristine",
+                condition_value=100,
+                bulk=1,
             ))
 
     # Emit events
-    for e in outcome.get("events", []):
-        _log(state, e["id"], **(e.get("params", {})))
+    if emit_events:
+        for e in outcome.get("events", []):
+            _log(state, e["id"], **(e.get("params", {})))
+
+
+def preview_tier_distribution(
+    state: State,
+    spec: ActionSpec,
+    item_meta: Dict[str, ItemMeta],
+    rng_seed: int,
+    samples: int = 9,
+) -> Dict[int, float]:
+    counts = {0: 0, 1: 0, 2: 0, 3: 0}
+    for i in range(samples):
+        tier = compute_tier(state, spec, item_meta, rng_seed=rng_seed + i * 1000)
+        counts[tier] += 1
+    return {k: v / samples for k, v in counts.items()}
+
+
+def preview_delta_ranges(spec: ActionSpec) -> Dict[str, Any]:
+    needs_keys = set()
+    for _, out in spec.outcomes.items():
+        needs_keys |= set((out.get("deltas", {}).get("needs", {}) or {}).keys())
+
+    ranges: Dict[str, Any] = {"needs": {}}
+    for k in needs_keys:
+        vals = []
+        for _, out in spec.outcomes.items():
+            needs = (out.get("deltas", {}).get("needs", {}) or {})
+            if k in needs:
+                vals.append(int(needs[k]))
+        if vals:
+            ranges["needs"][k] = {"min": min(vals), "max": max(vals)}
+    return ranges
+
+
+def build_preview_notes(
+    state: State,
+    spec: ActionSpec,
+    item_meta: Dict[str, ItemMeta],
+    action_call: Any,
+) -> List[str]:
+    notes = []
+    primary = (spec.modifiers or {}).get("primary_skill")
+    if primary:
+        notes.append(f"Primary skill: {primary} ({_get_skill_value(state, primary):.1f})")
+    weights = (spec.modifiers or {}).get("item_provides_weights") or {}
+    for prov in weights:
+        if _find_best_item_for_provides(state, item_meta, prov, state.world.location) is None:
+            notes.append(f"Optional improvement: item providing '{prov}'")
+    if spec.parameters:
+        for p in spec.parameters:
+            if p.get("required") and p["name"] not in action_call.params:
+                notes.append(f"Missing parameter: {p['name']}")
+    return notes
 
 
 def apply_consumes(
@@ -418,3 +505,23 @@ def apply_consumes(
                 it.condition = "used"
             else:
                 it.condition = "pristine"
+
+
+def compute_repair_cost(state: State, spec: ActionSpec, item: Item) -> int:
+    formula = (spec.dynamic or {}).get("cost_formula", {})
+    base_per_damage = int(formula.get("base_per_damage_pence", 10))
+    min_cost = int(formula.get("min_cost_pence", 50))
+    discount_per_point = float(formula.get("skill_discount_per_point", 2))
+    damage = max(0, 100 - int(item.condition_value))
+    base_cost = damage * base_per_damage
+    maintenance_skill = _get_skill_value(state, "maintenance")
+    discount = maintenance_skill * discount_per_point
+    return max(min_cost, int(base_cost - discount))
+
+
+def compute_repair_restoration(state: State, spec: ActionSpec) -> int:
+    formula = (spec.dynamic or {}).get("restoration_formula", {})
+    base = float(formula.get("base", 30))
+    per_skill = float(formula.get("per_skill_point", 0.5))
+    maintenance_skill = _get_skill_value(state, "maintenance")
+    return int(base + maintenance_skill * per_skill)

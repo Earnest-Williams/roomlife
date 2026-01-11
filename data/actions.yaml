@@ -5,6 +5,92 @@ schema_version: 1
 # The engine will compute a tier deterministically from skill + context + items + rng_seed.
 
 actions:
+  - id: move
+    display_name: "Move"
+    description: "Move to a connected space."
+    category: movement
+    time_minutes: 15
+    parameters:
+      - name: target_space
+        type: space_id
+        required: true
+
+    requires:
+      location:
+        connected_to_param: target_space
+
+    modifiers:
+      primary_skill: reflexivity
+      secondary_skills: {}
+
+    outcomes:
+      1:
+        deltas:
+          needs:
+            fatigue: 2
+
+  - id: repair_item
+    display_name: "Repair item"
+    description: "Repair a specific item you can reach."
+    category: maintenance
+    time_minutes: 60
+    parameters:
+      - name: item_ref
+        type: item_ref
+        required: true
+        constraints:
+          reachable: true
+
+    requires:
+      skills_min:
+        maintenance: 0
+    modifiers:
+      primary_skill: maintenance
+      secondary_skills: {}
+    dynamic:
+      cost_formula:
+        base_per_damage_pence: 10
+        min_cost_pence: 50
+        skill_discount_per_point: 2
+      restoration_formula:
+        base: 30
+        per_skill_point: 0.5
+    outcomes:
+      1: { events: [{ id: "action.repair_item", params: {} }], deltas: { skills_xp: { maintenance: 2.0 } } }
+      2: { events: [{ id: "action.repair_item", params: { quality: "good" } }], deltas: { skills_xp: { maintenance: 2.3 } } }
+      3: { events: [{ id: "action.repair_item", params: { quality: "great" } }], deltas: { skills_xp: { maintenance: 2.7 } } }
+
+  - id: pick_up_item
+    display_name: "Pick up item"
+    description: "Move an item from the floor into inventory."
+    category: inventory
+    time_minutes: 5
+    parameters:
+      - name: item_ref
+        type: item_ref
+        required: true
+        constraints:
+          reachable: true
+
+    requires:
+      location: {}
+    outcomes:
+      1: { events: [{ id: "action.pick_up_item", params: {} }] }
+
+  - id: drop_item
+    display_name: "Drop item"
+    description: "Drop an item from inventory onto the floor."
+    category: inventory
+    time_minutes: 2
+    parameters:
+      - name: item_ref
+        type: item_ref
+        required: true
+        constraints:
+          in_inventory: true
+    outcomes:
+      1: { events: [{ id: "action.drop_item", params: {} }] }
+
   - id: cook_basic_meal
     display_name: "Cook basic meal"
     description: "Cook a simple meal. Better tools and nutrition skill improve results."

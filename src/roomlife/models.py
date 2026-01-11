@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Dict, List, Optional
+from uuid import uuid4
 
 from .constants import SKILL_NAMES
 
@@ -56,12 +57,15 @@ class Traits:
 
 @dataclass
 class Item:
+    instance_id: str
     item_id: str
+    placed_in: str
+    container: Optional[str]
+    slot: str
+    quality: float
     condition: str = "used"     # pristine/used/worn/broken/filthy
     condition_value: int = 80   # 0-100 numeric condition
-    placed_in: str = "room_001"
-    slot: str = "floor"         # logical slot, not coordinates
-    quality: float = 1.0        # quality multiplier (0.8-1.8), affects effectiveness
+    bulk: int = 1               # how “big” it is to carry
 
 
 @dataclass
@@ -88,6 +92,7 @@ class Player:
     money_pence: int = 5000
     utilities_paid: bool = True
     current_job: str = "recycling_collector"  # Job system - start with worst job
+    carry_capacity: int = 12
     needs: Needs = field(default_factory=Needs)
     skills: Dict[str, int] = field(default_factory=lambda: {"general": 0})
     relationships: Dict[str, int] = field(default_factory=dict)
@@ -117,3 +122,15 @@ class State:
     def get_items_at(self, location: str) -> List[Item]:
         """Get all items at a specific location (optimized spatial query)."""
         return [item for item in self.items if item.placed_in == location]
+
+
+def generate_instance_id() -> str:
+    return f"it_{uuid4().hex[:8]}"
+
+
+def inventory_bulk(state: State) -> int:
+    return sum(it.bulk for it in state.items if it.placed_in == "inventory")
+
+
+def can_carry(state: State, added_bulk: int) -> bool:
+    return inventory_bulk(state) + added_bulk <= state.player.carry_capacity
