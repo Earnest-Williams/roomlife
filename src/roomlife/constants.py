@@ -55,6 +55,11 @@ TRAIT_DRIFT_CONFIGS = [
         "trait": "frugality",
         "message": "You're becoming more mindful of spending. Frugality is rising.",
     },
+    {
+        "habit": "fitness",
+        "trait": "fitness",
+        "message": "Your body feels stronger. Fitness is rising.",
+    },
 ]
 
 # Maximum event log entries to keep (prevents unbounded growth)

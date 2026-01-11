@@ -557,7 +557,10 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
             for skill_name, xp_gain in job_data.get("skill_gains", {}).items():
                 if skill_name == "fitness":
                     # Fitness is a trait, not a skill - handle specially
-                    _track_habit(state, "fitness", int(xp_gain * 10))  # Convert to habit points
+                    # Convert to habit points (*10 multiplier balances trait vs skill growth)
+                    # Example: 0.3 XP/work * 10 = 3 habit points/work → ~27 works to gain +1 fitness
+                    # This makes trait growth slower and more deliberate than skill growth
+                    _track_habit(state, "fitness", int(xp_gain * 10))
                 else:
                     gain = _gain_skill_xp(state, skill_name, xp_gain, current_tick)
                     skill_gains_log[skill_name] = round(gain, 2)
