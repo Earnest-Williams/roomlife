@@ -3,7 +3,7 @@ items:
   - id: bed_basic
     name: Basic bed
     tags: [sleep]
-    price: 0  # Starter item
+    price: 2000  # £20
     quality: 1.0
     description: A simple single bed. Gets the job done.
 
@@ -32,7 +32,7 @@ items:
   - id: desk_worn
     name: Worn desk
     tags: [study, work]
-    price: 0  # Starter item
+    price: 2500  # £25
     quality: 0.8
     description: An old, worn desk. Better than nothing.
 
@@ -83,7 +83,7 @@ items:
   - id: kettle
     name: Kettle
     tags: [cook]
-    price: 0  # Starter item
+    price: 1000  # £10
     quality: 1.0
     description: Basic electric kettle for hot drinks.
 

@@ -292,10 +292,11 @@ def new_game() -> State:
     }
 
     # Create starter items with quality from metadata
+    # Items start at ~50% condition (worn) to reflect their degraded state
     starter_items = [
-        ("bed_basic", "used", 80, "room_001", "floor"),
-        ("desk_worn", "worn", 60, "room_001", "wall"),
-        ("kettle", "used", 75, "room_001", "surface"),
+        ("bed_basic", "worn", 50, "room_001", "floor"),
+        ("desk_worn", "worn", 45, "room_001", "wall"),
+        ("kettle", "worn", 50, "room_001", "surface"),
     ]
 
     state.items = []
@@ -841,27 +842,31 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
             metadata = _get_item_metadata(item_id)
             base_price = metadata.get("price", 0)
 
-            # Calculate sell price: 40% of base price, adjusted by condition
-            condition_multiplier = item_to_sell.condition_value / 100.0
-            sell_price = int(base_price * 0.4 * condition_multiplier)
+            # Starter / zero-priced items cannot be sold
+            if base_price <= 0:
+                _log(state, "action.failed", action_id=action_id, reason="item_not_sellable")
+            else:
+                # Calculate sell price: 40% of base price, adjusted by condition
+                condition_multiplier = item_to_sell.condition_value / 100.0
+                sell_price = int(base_price * 0.4 * condition_multiplier)
 
-            # Minimum sell price
-            sell_price = max(100, sell_price)
+                # Minimum sell price
+                sell_price = max(100, sell_price)
 
-            # Add money to player
-            state.player.money_pence += sell_price
+                # Add money to player
+                state.player.money_pence += sell_price
 
-            # Remove item from state
-            state.items.remove(item_to_sell)
+                # Remove item from state
+                state.items.remove(item_to_sell)
 
-            # Gain resource management skill
-            gain = _gain_skill_xp(state, "resource_management", 0.3, current_tick)
+                # Gain resource management skill
+                gain = _gain_skill_xp(state, "resource_management", 0.3, current_tick)
 
-            # Track frugality habit
-            _track_habit(state, "frugality", 5)
+                # Track frugality habit
+                _track_habit(state, "frugality", 5)
 
-            _log(state, "shopping.sell", item_id=item_id, item_name=metadata.get("name", item_id),
-                 earned_pence=sell_price, condition=item_to_sell.condition, skill_gain=round(gain, 2))
+                _log(state, "shopping.sell", item_id=item_id, item_name=metadata.get("name", item_id),
+                     earned_pence=sell_price, condition=item_to_sell.condition, skill_gain=round(gain, 2))
 
     else:
         _log(state, "action.unknown", action_id=action_id)
