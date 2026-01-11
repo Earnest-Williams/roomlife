@@ -11,6 +11,7 @@ import random
 
 from .models import State, Item
 from .content_specs import ActionSpec, ItemMeta
+from .constants import SKILL_TO_APTITUDE
 
 
 def _log(state: State, event_id: str, **params: Any) -> None:
@@ -48,6 +49,56 @@ def _get_skill_value(state: State, skill_name: str) -> float:
     """
     skill = state.player.skills_detailed.get(skill_name)
     return skill.value if skill else 0.0
+
+
+def _get_health_penalty(state: State) -> float:
+    """Calculate health penalty multiplier for actions.
+
+    Args:
+        state: Game state
+
+    Returns:
+        Multiplier between 0.5 and 1.0 based on health
+    """
+    health = state.player.needs.health
+    if health < 50:
+        return 0.5 + (health / 100.0)
+    return 1.0
+
+
+def _apply_skill_xp(state: State, skill_name: str, xp_gain: float, current_tick: int) -> float:
+    """Apply skill XP gain with trait modifiers.
+
+    Args:
+        state: Game state
+        skill_name: Name of the skill
+        xp_gain: Base XP gain
+        current_tick: Current game tick
+
+    Returns:
+        Actual XP gained after modifiers
+    """
+    skill = state.player.skills_detailed.get(skill_name)
+    if skill is None:
+        return 0.0
+
+    # Apply modifiers (curiosity trait and health penalty)
+    curiosity_mod = 1.0 + (state.player.traits.curiosity / 100.0) * 0.3
+    health_penalty = _get_health_penalty(state)
+    actual_gain = xp_gain * curiosity_mod * health_penalty
+
+    # Update skill
+    skill.value += actual_gain
+    skill.last_tick = current_tick
+
+    # Update aptitude
+    aptitude_name = SKILL_TO_APTITUDE[skill_name]
+    aptitude = getattr(state.player.aptitudes, aptitude_name)
+    aptitude_gain = actual_gain * 0.002
+    new_aptitude = aptitude + aptitude_gain
+    setattr(state.player.aptitudes, aptitude_name, new_aptitude)
+
+    return actual_gain
 
 
 def _find_best_item_for_provides(
@@ -244,6 +295,7 @@ def apply_outcome(
     spec: ActionSpec,
     tier: int,
     item_meta: Dict[str, ItemMeta],
+    current_tick: int,
 ) -> None:
     """Apply the outcome effects for a given tier.
 
@@ -252,6 +304,7 @@ def apply_outcome(
         spec: Action specification
         tier: Outcome tier (0-3)
         item_meta: Item metadata registry
+        current_tick: Current game tick for skill rust tracking
     """
     outcome = spec.outcomes.get(tier) or spec.outcomes.get(1) or {}
     deltas = outcome.get("deltas", {})
@@ -268,13 +321,11 @@ def apply_outcome(
         state.player.money_pence += int(money_delta)
 
     # Skill XP gains
-    # Note: For full integration, this should call the engine's _gain_skill_xp
-    # For now, we log the skill gain event
     skills_xp = deltas.get("skills_xp", {})
     if skills_xp:
         for s, xp in skills_xp.items():
-            # Log skill gain for now; actual integration will use engine's _gain_skill_xp
-            _log(state, "skill.gain", skill=s, xp=float(xp))
+            actual_gain = _apply_skill_xp(state, s, float(xp), current_tick)
+            _log(state, "skill.gain", skill=s, xp=round(actual_gain, 2))
 
     # Flags (stored in player.habit_tracker for now, or new flags dict)
     flags = deltas.get("flags", {})
@@ -326,13 +377,28 @@ def apply_consumes(
     if "money_pence" in cons:
         state.player.money_pence -= int(cons["money_pence"])
 
-    # Inventory consumption (future-ready)
+    # Inventory consumption
     inv_cons = cons.get("inventory_items", [])
     if inv_cons:
-        # TODO: Implement when inventory system is added
-        # For now, just log consumption
         for item_cons in inv_cons:
-            _log(state, "item.consumed", item_id=item_cons["item_id"], quantity=item_cons["quantity"])
+            item_id = item_cons["item_id"]
+            quantity = int(item_cons.get("quantity", 1))
+
+            # Remove items from state.items
+            removed = 0
+            for _ in range(quantity):
+                # Find and remove one instance of the item (prefer inventory, then current location)
+                for item in state.items:
+                    if item.item_id == item_id and (
+                        item.placed_in == "inventory" or
+                        item.placed_in == state.world.location
+                    ):
+                        state.items.remove(item)
+                        removed += 1
+                        break
+
+            # Log consumption
+            _log(state, "item.consumed", item_id=item_id, quantity=removed)
 
     # Item durability degradation
     dur = cons.get("item_durability")

@@ -585,8 +585,8 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
             # Apply consumption
             apply_consumes(state, spec, _ITEM_META)
 
-            # Apply outcome (includes skill XP - for now just logs, will integrate with _gain_skill_xp later)
-            apply_outcome(state, spec, tier, _ITEM_META)
+            # Apply outcome (includes skill XP with trait modifiers)
+            apply_outcome(state, spec, tier, _ITEM_META, current_tick)
 
         # Always advance time and apply environment
         _advance_time(state)
