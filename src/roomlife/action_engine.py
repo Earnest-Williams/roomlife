@@ -13,7 +13,13 @@ from .models import State, Item, generate_instance_id
 from .action_call import ActionCall
 from .content_specs import ActionSpec, ItemMeta
 from .constants import MAX_EVENT_LOG, SKILL_TO_APTITUDE
-from .param_resolver import select_item_instance, validate_connected_to_param, validate_parameters
+from .param_resolver import (
+    apply_drop,
+    apply_pickup,
+    select_item_instance,
+    validate_connected_to_param,
+    validate_parameters,
+)
 
 
 def _log(state: State, event_id: str, **params: Any) -> None:

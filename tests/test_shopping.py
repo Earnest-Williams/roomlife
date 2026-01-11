@@ -1,5 +1,5 @@
 from roomlife.engine import apply_action, new_game
-from roomlife.models import Item
+from roomlife.models import Item, generate_instance_id
 
 
 def test_sell_item_adds_money_and_removes_item():
@@ -8,12 +8,14 @@ def test_sell_item_adds_money_and_removes_item():
     
     # Add a standard bed that can be sold (price: 2500, condition: 100)
     state.items.append(Item(
+        instance_id=generate_instance_id(),
         item_id="bed_standard",
-        condition="pristine",
-        condition_value=100,
         placed_in="room_001",
+        container=None,
         slot="floor",
-        quality=1.2
+        quality=1.2,
+        condition="pristine",
+        condition_value=100
     ))
     
     initial_money = state.player.money_pence
@@ -43,12 +45,14 @@ def test_cannot_sell_item_not_at_current_location():
     
     # Add a standard bed in a different location (hallway)
     state.items.append(Item(
+        instance_id=generate_instance_id(),
         item_id="bed_standard",
-        condition="used",
-        condition_value=80,
         placed_in="hall_001",  # Not at current location (room_001)
+        container=None,
         slot="floor",
-        quality=1.2
+        quality=1.2,
+        condition="used",
+        condition_value=80
     ))
     
     initial_money = state.player.money_pence
@@ -75,12 +79,14 @@ def test_sell_price_calculation_with_condition():
     
     # Add a desk with 50% condition (price: 3000)
     state.items.append(Item(
+        instance_id=generate_instance_id(),
         item_id="desk_basic",
-        condition="worn",
-        condition_value=50,
         placed_in="room_001",
+        container=None,
         slot="wall",
-        quality=1.0
+        quality=1.0,
+        condition="worn",
+        condition_value=50
     ))
     
     initial_money = state.player.money_pence
@@ -114,12 +120,14 @@ def test_sell_price_multiple_conditions():
         
         # Add item with specific condition
         state.items.append(Item(
+            instance_id=generate_instance_id(),
             item_id=item_id,
-            condition="used",
-            condition_value=condition_value,
             placed_in="room_001",
+            container=None,
             slot="floor",
-            quality=1.4
+            quality=1.4,
+            condition="used",
+            condition_value=condition_value
         ))
         
         initial_money = state.player.money_pence
@@ -139,12 +147,14 @@ def test_minimum_sell_price_enforced():
     # For example, desk_basic (3000) at 5% condition would be: 3000 * 0.4 * 0.05 = 60
     # But minimum is 100
     state.items.append(Item(
+        instance_id=generate_instance_id(),
         item_id="desk_basic",
-        condition="broken",
-        condition_value=5,
         placed_in="room_001",
+        container=None,
         slot="wall",
-        quality=1.0
+        quality=1.0,
+        condition="broken",
+        condition_value=5
     ))
     
     initial_money = state.player.money_pence
@@ -204,12 +214,14 @@ def test_sell_action_grants_resource_management_skill():
     
     # Add an item to sell
     state.items.append(Item(
+        instance_id=generate_instance_id(),
         item_id="bed_standard",
-        condition="used",
-        condition_value=80,
         placed_in="room_001",
+        container=None,
         slot="floor",
-        quality=1.2
+        quality=1.2,
+        condition="used",
+        condition_value=80
     ))
     
     # Get initial skill value
@@ -246,12 +258,14 @@ def test_sell_action_tracks_frugality_habit():
     
     # Add an item to sell
     state.items.append(Item(
+        instance_id=generate_instance_id(),
         item_id="desk_basic",
-        condition="used",
-        condition_value=70,
         placed_in="room_001",
+        container=None,
         slot="wall",
-        quality=1.0
+        quality=1.0,
+        condition="used",
+        condition_value=70
     ))
     
     # Get initial frugality tracker value
@@ -271,20 +285,24 @@ def test_sell_multiple_items_sequentially():
     
     # Add multiple items
     state.items.append(Item(
+        instance_id=generate_instance_id(),
         item_id="bed_standard",
-        condition="used",
-        condition_value=80,
         placed_in="room_001",
+        container=None,
         slot="floor",
-        quality=1.2
+        quality=1.2,
+        condition="used",
+        condition_value=80
     ))
     state.items.append(Item(
+        instance_id=generate_instance_id(),
         item_id="desk_basic",
-        condition="used",
-        condition_value=70,
         placed_in="room_001",
+        container=None,
         slot="wall",
-        quality=1.0
+        quality=1.0,
+        condition="used",
+        condition_value=70
     ))
     
     initial_money = state.player.money_pence
@@ -312,12 +330,14 @@ def test_cannot_sell_same_item_twice():
     
     # Add one item
     state.items.append(Item(
+        instance_id=generate_instance_id(),
         item_id="bed_standard",
-        condition="used",
-        condition_value=80,
         placed_in="room_001",
+        container=None,
         slot="floor",
-        quality=1.2
+        quality=1.2,
+        condition="used",
+        condition_value=80
     ))
     
     initial_money = state.player.money_pence

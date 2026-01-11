@@ -104,8 +104,9 @@ def test_each_action_has_deterministic_outcome_with_seed():
     assert engine._ACTION_SPECS is not None
 
     for spec in engine._ACTION_SPECS.values():
-        s1 = new_game()
-        s2 = new_game()
+        # Use the same seed for both games to ensure deterministic instance IDs
+        s1 = new_game(seed=100)
+        s2 = new_game(seed=100)
         _prepare_state_for_spec(s1, spec)
         _prepare_state_for_spec(s2, spec)
         params1 = _build_params(s1, spec)

@@ -386,8 +386,20 @@ def _ensure_specs_loaded() -> None:
             _SPACE_SPECS = {}
 
 
-def new_game() -> State:
+def new_game(seed: Optional[int] = None) -> State:
+    """Create a new game state.
+
+    Args:
+        seed: Optional seed for deterministic instance ID generation.
+              If provided, the same seed will generate the same item instance IDs.
+
+    Returns:
+        A new game state.
+    """
     state = State()
+
+    # Create RNG for deterministic ID generation if seed provided
+    rng = random.Random(seed) if seed is not None else None
 
     # Load spaces from YAML
     _ensure_specs_loaded()
@@ -457,7 +469,7 @@ def new_game() -> State:
         metadata = _get_item_metadata(item_id)
         quality = metadata.get("quality", 1.0)
         state.items.append(Item(
-            instance_id=generate_instance_id(),
+            instance_id=generate_instance_id(rng),
             item_id=item_id,
             placed_in=placed_in,
             container=None,
