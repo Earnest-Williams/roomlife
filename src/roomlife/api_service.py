@@ -39,6 +39,7 @@ from .action_engine import (
     validate_action_spec,
 )
 from .action_call import ActionCall
+from .catalog import ActionCatalog
 
 
 class RoomLifeAPI:
@@ -220,19 +221,12 @@ class RoomLifeAPI:
         Returns:
             AvailableActionsResponse with action metadata
         """
-        actions = self._get_action_metadata_list()
-
-        # Filter to only valid actions
-        valid_actions = []
-        for action in actions:
-            validation = self.validate_action(action.action_id)
-            if validation.valid:
-                valid_actions.append(action)
+        actions = [action for action in self._get_action_metadata_list() if action.available]
 
         return AvailableActionsResponse(
-            actions=valid_actions,
+            actions=actions,
             location=self.state.world.location,
-            total_count=len(valid_actions),
+            total_count=len(actions),
         )
 
     def get_all_actions_metadata(self) -> List[ActionMetadata]:
@@ -708,6 +702,57 @@ class RoomLifeAPI:
 
     def _get_action_metadata_list(self) -> List[ActionMetadata]:
         """Get metadata for all possible actions."""
+        catalog_actions = self._get_catalog_action_metadata_list()
+        legacy_actions = self._get_legacy_action_metadata_list()
+        legacy_actions = [
+            action
+            for action in legacy_actions
+            if ActionCall.from_legacy(action.action_id).action_id not in self._action_specs
+        ]
+        self._apply_availability_metadata(legacy_actions)
+        return catalog_actions + legacy_actions
+
+    def _apply_availability_metadata(self, actions: List[ActionMetadata]) -> None:
+        for action in actions:
+            validation = self.validate_action(action.action_id, params=action.params)
+            action.available = validation.valid
+            action.why_locked = None if validation.valid else validation.reason
+            action.missing_requirements = validation.missing_requirements if not validation.valid else []
+
+    def _get_catalog_action_metadata_list(self) -> List[ActionMetadata]:
+        catalog = ActionCatalog(self._action_specs, self._item_meta)
+        cards = catalog.list_available(self.state)
+        actions: List[ActionMetadata] = []
+        for card in cards:
+            spec = self._action_specs.get(card.call.action_id)
+            category = ActionCategory.OTHER
+            if spec is not None:
+                category = self._get_action_category(spec.category)
+            actions.append(ActionMetadata(
+                action_id=card.call.action_id,
+                display_name=card.display_name,
+                description=card.description,
+                category=category,
+                requirements=dict(spec.requires) if spec and spec.requires else {},
+                effects={},
+                params=card.call.params or None,
+                available=card.available,
+                why_locked=card.why_locked,
+                missing_requirements=card.missing_requirements,
+            ))
+        return actions
+
+    def _get_action_category(self, value: Optional[str]) -> ActionCategory:
+        if value is None:
+            return ActionCategory.OTHER
+        normalized = value.strip().lower()
+        for category in ActionCategory:
+            if category.value == normalized:
+                return category
+        return ActionCategory.OTHER
+
+    def _get_legacy_action_metadata_list(self) -> List[ActionMetadata]:
+        """Get metadata for all possible legacy actions."""
         from .constants import JOBS
 
         # Get current job info for work action

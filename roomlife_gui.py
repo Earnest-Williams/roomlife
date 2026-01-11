@@ -253,8 +253,8 @@ class RoomLifeGUI:
 
             btn = ttk.Button(
                 frame,
-                text=action.action_id,
-                command=lambda aid=action.action_id: self.execute_action(aid)
+                text=action.display_name or action.action_id,
+                command=lambda act=action: self.execute_action(act.action_id, act.params)
             )
             btn.pack(side=tk.LEFT, padx=5)
 
@@ -263,10 +263,10 @@ class RoomLifeGUI:
                 desc_label = ttk.Label(frame, text=action.description, foreground="gray")
                 desc_label.pack(side=tk.LEFT, padx=5)
 
-    def execute_action(self, action_id: str):
+    def execute_action(self, action_id: str, params=None):
         """Execute an action and update the display."""
         # Validate first
-        validation = self.api.validate_action(action_id)
+        validation = self.api.validate_action(action_id, params=params)
 
         if not validation.valid:
             self.log_message(f"❌ Action '{action_id}' is invalid: {validation.reason}")
@@ -274,7 +274,7 @@ class RoomLifeGUI:
             return
 
         # Execute action
-        result = self.api.execute_action(action_id)
+        result = self.api.execute_action(action_id, params=params)
 
         if result.success:
             self.log_message(f"✓ Executed: {action_id}")
