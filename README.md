@@ -20,8 +20,13 @@ If you are not using sdc, create an environment and install dependencies:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e .
 pip install pyyaml rich typer
+```
+
+Then make the sources importable for local runs:
+
+```bash
+export PYTHONPATH="$PWD/src"
 ```
 
 ## Run
