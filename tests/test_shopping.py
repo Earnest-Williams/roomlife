@@ -162,31 +162,30 @@ def test_minimum_sell_price_enforced():
 
 
 def test_starter_items_can_be_sold():
-    """Test that starter items (price 0) can be sold but receive minimum price."""
+    """Test that starter items can be sold at 40% of base price adjusted by condition."""
     state = new_game()
-    
-    # The starter items are already in the game: bed_basic, desk_worn, kettle (all price 0)
+
+    # The starter items are already in the game: bed_basic (price 2000, condition 50%), desk_worn, kettle
     # Find the bed_basic starter item
     bed_basic = next((item for item in state.items if item.item_id == "bed_basic"), None)
     assert bed_basic is not None, "Starter bed_basic should exist"
-    
+
     initial_money = state.player.money_pence
     initial_item_count = len(state.items)
-    
+
     # Try to sell the starter bed
     apply_action(state, "sell_bed_basic", rng_seed=123)
-    
+
     # Item should be removed
     assert len(state.items) == initial_item_count - 1
-    
-    # Should receive minimum price (100 pence) since base price is 0
-    # 0 * 0.4 * condition = 0, so minimum of 100 applies
-    assert state.player.money_pence == initial_money + 100
-    
+
+    # Should receive 40% of base price (2000) * condition (50%) = 2000 * 0.4 * 0.5 = 400 pence
+    assert state.player.money_pence == initial_money + 400
+
     # Verify through event log
     sell_events = [e for e in state.event_log if e["event_id"] == "shopping.sell"]
     assert len(sell_events) == 1
-    assert sell_events[0]["params"]["earned_pence"] == 100
+    assert sell_events[0]["params"]["earned_pence"] == 400
 
 
 def test_sell_action_grants_resource_management_skill():
