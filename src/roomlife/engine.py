@@ -13,6 +13,7 @@ from .constants import (
     HEALTH_PENALTY_THRESHOLD,
     ILLNESS_RECOVERY_PER_TURN,
     INJURY_RECOVERY_PER_TURN,
+    JOBS,
     MAX_EVENT_LOG,
     REST_ILLNESS_RECOVERY,
     REST_INJURY_RECOVERY,
@@ -222,6 +223,68 @@ def _get_health_penalty(state: State) -> float:
         return 1.0
     # Linear interpolation: health 0 = 0.5, health 50 = 1.0
     return 0.5 + (health / HEALTH_PENALTY_THRESHOLD) * 0.5
+
+
+def _check_job_requirements(state: State, job_id: str) -> Tuple[bool, str]:
+    """Check if player meets job requirements.
+
+    Returns:
+        Tuple of (meets_requirements, reason_if_failed)
+    """
+    job_data = JOBS.get(job_id)
+    if not job_data:
+        return False, "job_not_found"
+
+    requirements = job_data.get("requirements", {})
+
+    # Check if any requirements exist
+    if not requirements:
+        return True, ""
+
+    require_all = requirements.get("require_all", True)
+
+    # Check skill requirements
+    skill_reqs = requirements.get("skills", [])
+    skill_met = True
+    for skill_req in skill_reqs:
+        skill_name = skill_req["name"]
+        min_value = skill_req["min"]
+        skill = _get_skill(state, skill_name)
+        if skill.value < min_value:
+            skill_met = False
+            if require_all:
+                return False, f"insufficient_{skill_name}"
+
+    # Check trait requirements
+    trait_reqs = requirements.get("traits", [])
+    trait_met = True
+    for trait_req in trait_reqs:
+        trait_name = trait_req["name"]
+        min_value = trait_req["min"]
+        trait_value = getattr(state.player.traits, trait_name, 0)
+        if trait_value < min_value:
+            trait_met = False
+            if require_all:
+                return False, f"insufficient_{trait_name}"
+
+    # Check item requirements (e.g., certification, laptop)
+    item_reqs = requirements.get("items", [])
+    item_met = True
+    for item_req in item_reqs:
+        tag = item_req["tag"]
+        has_item = _find_item_with_tag(state, tag) is not None
+        if not has_item:
+            item_met = False
+            if require_all:
+                return False, f"missing_{tag}"
+
+    # If require_all is False, check if at least one category is met
+    if not require_all:
+        if skill_met or trait_met or item_met:
+            return True, ""
+        return False, "insufficient_any_requirement"
+
+    return True, ""
 
 
 def _apply_skill_rust(state: State, current_tick: int) -> None:
@@ -456,29 +519,52 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
         if desk is None:
             _log(state, "action.failed", action_id="work", reason="no_workspace")
         else:
+            # Get current job details
+            current_job = state.player.current_job
+            job_data = JOBS.get(current_job, JOBS["recycling_collector"])
+
             # Item effectiveness affects productivity and fatigue
             item_effectiveness = _get_item_effectiveness(desk)
             health_penalty = _get_health_penalty(state)
-            base_earnings = 3500
-            earnings = int(base_earnings * item_effectiveness * health_penalty)  # Poor health reduces productivity
+            confidence_mod = 1.0 + (state.player.traits.confidence / 100.0) * 0.2  # Up to +20% earnings
+
+            # Calculate earnings based on job
+            base_earnings = job_data["base_pay"]
+            earnings = int(base_earnings * item_effectiveness * health_penalty * confidence_mod)
 
             state.player.money_pence += earnings
-            fatigue_cost = 15
+
+            # Fatigue cost from job
+            fatigue_cost = job_data["fatigue_cost"]
             discipline_mod = 1.0 - (state.player.traits.discipline / 100.0) * 0.2
+            fitness_mod = 1.0 - (state.player.traits.fitness / 100.0) * 0.15  # Fitness reduces fatigue
             # Better desk reduces fatigue, poor health increases fatigue
-            fatigue_cost = int(fatigue_cost * discipline_mod * (2.0 - item_effectiveness) * (2.0 - health_penalty))
+            fatigue_cost = int(fatigue_cost * discipline_mod * fitness_mod * (2.0 - item_effectiveness) * (2.0 - health_penalty))
             state.player.needs.fatigue = min(100, state.player.needs.fatigue + fatigue_cost)
             state.player.needs.mood = max(0, state.player.needs.mood - 2)
-            state.player.skills["general"] = state.player.skills.get("general", 0) + 1
-            gain = _gain_skill_xp(state, "technical_literacy", 2.0, current_tick)
+
+            # Skill gains based on job
+            skill_gains_log = {}
+            for skill_name, xp_gain in job_data.get("skill_gains", {}).items():
+                if skill_name == "fitness":
+                    # Fitness is a trait, not a skill - handle specially
+                    _track_habit(state, "fitness", int(xp_gain * 10))  # Convert to habit points
+                else:
+                    gain = _gain_skill_xp(state, skill_name, xp_gain, current_tick)
+                    skill_gains_log[skill_name] = round(gain, 2)
+
             _track_habit(state, "discipline", 10)
             _track_habit(state, "confidence", 8)
 
             # Degrade desk with use
             _degrade_item(desk, base_degradation=3)
 
-            _log(state, "action.work", earned_pence=earnings, skill_gain=round(gain, 2),
-                 item_condition=desk.condition, item_effectiveness=round(item_effectiveness, 2))
+            _log(state, "action.work",
+                 earned_pence=earnings,
+                 job=job_data["name"],
+                 skill_gains=skill_gains_log,
+                 item_condition=desk.condition,
+                 item_effectiveness=round(item_effectiveness, 2))
 
     elif action_id == "study":
         # Check for desk/study area
@@ -909,6 +995,45 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
                 item_name=item_name,
                 condition=item_to_discard.condition,
             )
+
+    elif action_id.startswith("apply_job_"):
+        # Extract job_id from action_id (e.g., "apply_job_warehouse_worker" -> "warehouse_worker")
+        job_id = action_id[10:]  # Remove "apply_job_" prefix
+
+        if job_id not in JOBS:
+            _log(state, "action.failed", action_id=action_id, reason="job_not_found")
+        else:
+            job_data = JOBS[job_id]
+
+            # Check if already have this job
+            if state.player.current_job == job_id:
+                _log(state, "action.failed", action_id=action_id, reason="already_employed")
+            else:
+                # Check requirements
+                meets_requirements, reason = _check_job_requirements(state, job_id)
+
+                if not meets_requirements:
+                    _log(state, "job.application_rejected",
+                         job_id=job_id,
+                         job_name=job_data["name"],
+                         reason=reason)
+                else:
+                    # Success! Update job
+                    old_job = state.player.current_job
+                    old_job_name = JOBS[old_job]["name"] if old_job in JOBS else "Unemployed"
+                    state.player.current_job = job_id
+
+                    # Gain confidence from successful application
+                    _track_habit(state, "confidence", 20)
+
+                    # Small skill gain in relevant areas
+                    gain = _gain_skill_xp(state, "presence", 1.0, current_tick)
+
+                    _log(state, "job.application_accepted",
+                         old_job=old_job_name,
+                         new_job=job_data["name"],
+                         new_pay=job_data["base_pay"],
+                         skill_gain=round(gain, 2))
 
     else:
         _log(state, "action.unknown", action_id=action_id)

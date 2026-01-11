@@ -620,18 +620,27 @@ class RoomLifeAPI:
 
     def _get_action_metadata_list(self) -> List[ActionMetadata]:
         """Get metadata for all possible actions."""
+        from .constants import JOBS
+
+        # Get current job info for work action
+        current_job_id = self.state.player.current_job
+        current_job = JOBS.get(current_job_id, JOBS["recycling_collector"])
+        job_pay = current_job["base_pay"]
+        job_name = current_job["name"]
+        job_fatigue = current_job["fatigue_cost"]
+
         actions = [
             ActionMetadata(
                 action_id="work",
-                display_name="Work",
-                description="Do freelance work to earn money",
+                display_name=f"Work ({job_name})",
+                description=f"Work your current job: {current_job['description']}",
                 category=ActionCategory.WORK,
                 requirements={},
                 effects={
-                    "money": "+3500p",
-                    "fatigue": "+15 (discipline adjusted)",
+                    "money": f"+{job_pay}p (confidence adjusted)",
+                    "fatigue": f"+{job_fatigue} (discipline/fitness adjusted)",
                     "mood": "-2",
-                    "skill": "technical_literacy +2.0",
+                    "skills": "varies by job",
                 },
             ),
             ActionMetadata(
@@ -900,6 +909,58 @@ class RoomLifeAPI:
                 effects={
                     "item_removed": item_display_name,
                     "habit": "minimalism +2",
+                },
+                cost_pence=0,
+            ))
+
+        # Add job application actions
+        from .engine import _check_job_requirements
+        for job_id, job_data in JOBS.items():
+            # Skip current job
+            if job_id == current_job_id:
+                continue
+
+            # Check requirements
+            meets_requirements, reason = _check_job_requirements(self.state, job_id)
+
+            # Build requirements description
+            req_list = []
+            requirements = job_data.get("requirements", {})
+            if requirements:
+                for skill_req in requirements.get("skills", []):
+                    skill_name = skill_req["name"].replace('_', ' ').title()
+                    min_value = skill_req["min"]
+                    current_value = self.state.player.skills_detailed[skill_req["name"]].value
+                    met = "✓" if current_value >= min_value else "✗"
+                    req_list.append(f"{met} {skill_name}: {int(current_value)}/{min_value}")
+
+                for trait_req in requirements.get("traits", []):
+                    trait_name = trait_req["name"].replace('_', ' ').title()
+                    min_value = trait_req["min"]
+                    current_value = getattr(self.state.player.traits, trait_req["name"], 0)
+                    met = "✓" if current_value >= min_value else "✗"
+                    req_list.append(f"{met} {trait_name}: {current_value}/{min_value}")
+
+                for item_req in requirements.get("items", []):
+                    tag = item_req["tag"]
+                    from .engine import _find_item_with_tag
+                    has_item = _find_item_with_tag(self.state, tag) is not None
+                    met = "✓" if has_item else "✗"
+                    req_list.append(f"{met} Requires: {tag.replace('_', ' ').title()}")
+
+            req_desc = "; ".join(req_list) if req_list else "No requirements"
+            status = "✓ Eligible" if meets_requirements else f"✗ Not eligible ({reason})"
+
+            actions.append(ActionMetadata(
+                action_id=f"apply_job_{job_id}",
+                display_name=f"Apply: {job_data['name']}",
+                description=f"{job_data['description']} Pay: {job_data['base_pay']}p. {status}. {req_desc}",
+                category=ActionCategory.WORK,
+                requirements={"status": status},
+                effects={
+                    "job": job_data['name'] if meets_requirements else "Application rejected",
+                    "pay": f"{job_data['base_pay']}p" if meets_requirements else "N/A",
+                    "skill": "presence +1.0" if meets_requirements else "N/A",
                 },
                 cost_pence=0,
             ))

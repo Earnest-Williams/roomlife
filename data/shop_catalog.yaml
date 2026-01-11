@@ -86,6 +86,26 @@ categories:
       - bookshelf_large
       - computer
       - computer_premium
+      - laptop_basic
+      - laptop_professional
+
+  - name: Career & Training
+    id: career
+    description: Invest in your career progression
+    items:
+      - training_course
+      - pillow
+      - pillow_premium
+      - coffee_maker
+      - alarm_clock
+
+  - name: Daily Essentials
+    id: essentials
+    description: Affordable items to improve daily life
+    items:
+      - water_bottle
+      - meal_prep_containers
+      - kettle
 
 # Special offers (future feature)
 # promotions:
