@@ -415,9 +415,39 @@ def new_game() -> State:
     else:
         # Fallback to hardcoded spaces if YAML not available
         state.spaces = {
-            "room_001": Space("room_001", "Tiny room", "room", 14, False, ["hall_001"]),
-            "hall_001": Space("hall_001", "Hallway", "shared", 12, False, ["room_001", "bath_001"]),
-            "bath_001": Space("bath_001", "Shared bathroom", "shared", 13, False, ["hall_001"]),
+            "room_001": Space(
+                "room_001",
+                "Tiny room",
+                "room",
+                14,
+                False,
+                ["hall_001"],
+                tags=["room", "sleep_area"],
+                fixtures=["bed_spot", "desk_spot"],
+                utilities_available=["power", "heat"],
+            ),
+            "hall_001": Space(
+                "hall_001",
+                "Hallway",
+                "shared",
+                12,
+                False,
+                ["room_001", "bath_001"],
+                tags=["hallway", "transit"],
+                fixtures=[],
+                utilities_available=["power"],
+            ),
+            "bath_001": Space(
+                "bath_001",
+                "Shared bathroom",
+                "shared",
+                13,
+                False,
+                ["hall_001"],
+                tags=["bathroom"],
+                fixtures=["shower", "sink", "toilet"],
+                utilities_available=["water", "heat", "power"],
+            ),
         }
 
     # Create starter items with quality from metadata
