@@ -108,8 +108,7 @@ def load_actions(path: str | Path) -> Dict[str, ActionSpec]:
     if not file_path.exists():
         return {}
 
-    text = file_path.read_text(encoding="utf-8")
-    raw = yaml.safe_load(text) or {}
+    raw, text = _load_yaml_mapping(file_path)
     out: Dict[str, ActionSpec] = {}
 
     actions = raw.get("actions", [])
@@ -233,6 +232,28 @@ def _format_action_error(file_path: Path, line: int | None, message: str) -> str
     return f"{file_path}: {message}"
 
 
+def _format_yaml_error(file_path: Path, error: yaml.YAMLError) -> str:
+    mark = getattr(error, "problem_mark", None)
+    detail = getattr(error, "problem", None)
+    if mark is not None:
+        detail = detail or str(error)
+        return f"{file_path}:{mark.line + 1}:{mark.column + 1}: {detail}"
+    return f"{file_path}: {error}"
+
+
+def _load_yaml_mapping(file_path: Path) -> tuple[Dict[str, Any], str]:
+    text = file_path.read_text(encoding="utf-8")
+    try:
+        raw = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        raise ValueError(_format_yaml_error(file_path, exc)) from exc
+    if raw is None:
+        return {}, text
+    if not isinstance(raw, dict):
+        raise ValueError(f"{file_path}: expected a mapping at document root")
+    return raw, text
+
+
 def load_spaces(path: str | Path) -> Dict[str, SpaceSpec]:
     """Load space specifications from YAML file.
 
@@ -250,10 +271,18 @@ def load_spaces(path: str | Path) -> Dict[str, SpaceSpec]:
     if not file_path.exists():
         return {}
 
-    raw = yaml.safe_load(file_path.read_text(encoding="utf-8"))
+    raw, _ = _load_yaml_mapping(file_path)
     out: Dict[str, SpaceSpec] = {}
 
-    for s in raw.get("spaces", []):
+    spaces = raw.get("spaces", [])
+    if not isinstance(spaces, list):
+        raise ValueError(f"{file_path}: spaces must be a list")
+
+    for idx, s in enumerate(spaces):
+        if not isinstance(s, dict):
+            raise ValueError(f"{file_path}: spaces[{idx}] must be a mapping")
+        if not s.get("id"):
+            raise ValueError(f"{file_path}: spaces[{idx}] missing id")
         out[s["id"]] = SpaceSpec(
             id=s["id"],
             name=s["name"],
@@ -286,10 +315,18 @@ def load_item_meta(path: str | Path) -> Dict[str, ItemMeta]:
     if not file_path.exists():
         return {}
 
-    raw = yaml.safe_load(file_path.read_text(encoding="utf-8"))
+    raw, _ = _load_yaml_mapping(file_path)
     out: Dict[str, ItemMeta] = {}
 
-    for it in raw.get("items", []):
+    items = raw.get("items", [])
+    if not isinstance(items, list):
+        raise ValueError(f"{file_path}: items must be a list")
+
+    for idx, it in enumerate(items):
+        if not isinstance(it, dict):
+            raise ValueError(f"{file_path}: items[{idx}] must be a mapping")
+        if not it.get("id"):
+            raise ValueError(f"{file_path}: items[{idx}] missing id")
         out[it["id"]] = ItemMeta(
             id=it["id"],
             name=it.get("name", it["id"]),

@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import random
 
 from .models import State, Item, generate_instance_id
+from .action_call import ActionCall
 from .content_specs import ActionSpec, ItemMeta
 from .constants import MAX_EVENT_LOG, SKILL_TO_APTITUDE
 from .param_resolver import select_item_instance, validate_connected_to_param, validate_parameters
@@ -25,7 +26,7 @@ def _log(state: State, event_id: str, **params: Any) -> None:
     """
     state.event_log.append({"event_id": event_id, "params": params})
     if len(state.event_log) > MAX_EVENT_LOG:
-        del state.event_log[:-MAX_EVENT_LOG]
+        state.event_log = state.event_log[-MAX_EVENT_LOG:]
 
 
 def _clamp100(x: int) -> int:
@@ -528,11 +529,10 @@ def apply_consumes(
                 default_amt = meta.durability.get("degrade_per_use_default")
             amt = int(default_amt or 1)
 
-        it.condition_value = max(0, int(getattr(it, "condition_value", 100)) - int(amt))
-        _update_item_condition(it)
+        degrade_item_condition(it, base_degradation=int(amt))
 
 
-def _update_item_condition(item: Item) -> None:
+def update_item_condition(item: Item) -> None:
     """Update item condition string from condition value."""
     if item.condition_value >= 90:
         item.condition = "pristine"
@@ -544,6 +544,15 @@ def _update_item_condition(item: Item) -> None:
         item.condition = "broken"
     else:
         item.condition = "filthy"
+
+
+def degrade_item_condition(item: Item, base_degradation: int = 5) -> None:
+    """Degrade an item's condition, scaling with poor condition."""
+    degradation = base_degradation
+    if item.condition_value < 40:
+        degradation = int(base_degradation * 1.5)
+    item.condition_value = max(0, item.condition_value - degradation)
+    update_item_condition(item)
 
 
 def compute_repair_cost(state: State, spec: ActionSpec, item: Item) -> int:
@@ -564,3 +573,96 @@ def compute_repair_restoration(state: State, spec: ActionSpec) -> int:
     per_skill = float(formula.get("per_skill_point", 0.5))
     maintenance_skill = _get_skill_value(state, "maintenance")
     return int(base + maintenance_skill * per_skill)
+
+
+def execute_action(
+    state: State,
+    spec: ActionSpec,
+    item_meta: Dict[str, ItemMeta],
+    action_call: ActionCall,
+    rng_seed: int,
+    current_tick: int,
+) -> None:
+    """Execute a validated action spec, applying effects and logging events."""
+    if spec.id == "move":
+        target = action_call.params.get("target_space")
+        current_location = state.world.location
+        if isinstance(target, str) and target in state.spaces:
+            from_space = state.spaces.get(current_location)
+            to_space = state.spaces.get(target)
+            state.world.location = target
+            tier = compute_tier(state, spec, item_meta, rng_seed=rng_seed)
+            apply_outcome(state, spec, tier, item_meta, current_tick, emit_events=False)
+            _log(
+                state,
+                "action.move",
+                from_id=current_location,
+                to_id=target,
+                from_location=getattr(from_space, "name", current_location),
+                to_location=getattr(to_space, "name", target),
+            )
+        else:
+            _log(state, "action.failed", action_id=spec.id, reason="invalid_target")
+        return
+
+    if spec.id == "repair_item":
+        item_ref = action_call.params.get("item_ref")
+        item = select_item_instance(state, item_ref) if isinstance(item_ref, dict) else None
+        if item is None:
+            _log(state, "action.failed", action_id=spec.id, reason="invalid_item")
+            return
+        if item.condition_value >= 90:
+            _log(state, "action.failed", action_id=spec.id, reason="item_already_pristine")
+            return
+        cost = compute_repair_cost(state, spec, item)
+        if state.player.money_pence < cost:
+            _log(state, "action.failed", action_id=spec.id, reason="insufficient_funds")
+            return
+        state.player.money_pence -= cost
+        restoration = compute_repair_restoration(state, spec)
+        item.condition_value = min(100, item.condition_value + restoration)
+        update_item_condition(item)
+        tier = compute_tier(state, spec, item_meta, rng_seed=rng_seed)
+        apply_outcome(state, spec, tier, item_meta, current_tick, emit_events=False)
+        outcome = spec.outcomes.get(tier) or spec.outcomes.get(1) or {}
+        outcome_params = (outcome.get("events", [{}])[0].get("params", {}) or {})
+        _log(
+            state,
+            "action.repair_item",
+            instance_id=item.instance_id,
+            item_id=item.item_id,
+            cost_pence=cost,
+            restoration=restoration,
+            **outcome_params,
+        )
+        return
+
+    if spec.id == "pick_up_item":
+        item_ref = action_call.params.get("item_ref")
+        item = select_item_instance(state, item_ref) if isinstance(item_ref, dict) else None
+        if item is None:
+            _log(state, "action.failed", action_id=spec.id, reason="invalid_item")
+            return
+        ok_pickup, msg = apply_pickup(state, item)
+        if not ok_pickup:
+            _log(state, "action.failed", action_id=spec.id, reason=msg)
+            return
+        _log(state, "action.pick_up_item", instance_id=item.instance_id, item_id=item.item_id)
+        return
+
+    if spec.id == "drop_item":
+        item_ref = action_call.params.get("item_ref")
+        item = select_item_instance(state, item_ref) if isinstance(item_ref, dict) else None
+        if item is None:
+            _log(state, "action.failed", action_id=spec.id, reason="invalid_item")
+            return
+        ok_drop, msg = apply_drop(state, item)
+        if not ok_drop:
+            _log(state, "action.failed", action_id=spec.id, reason=msg)
+            return
+        _log(state, "action.drop_item", instance_id=item.instance_id, item_id=item.item_id)
+        return
+
+    tier = compute_tier(state, spec, item_meta, rng_seed=rng_seed)
+    apply_consumes(state, spec, item_meta)
+    apply_outcome(state, spec, tier, item_meta, current_tick)

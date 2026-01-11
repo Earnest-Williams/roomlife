@@ -7,6 +7,7 @@ from typing import Dict
 import yaml
 
 from .constants import SKILL_NAMES
+from .content_specs import load_spaces
 from .models import (
     Aptitudes,
     Item,
@@ -76,6 +77,24 @@ def load_state(path: Path) -> State:
     )
     s.utilities = Utilities(**raw["utilities"])
     s.spaces = {k: Space(**v) for k, v in raw["spaces"].items()}
+    data_dir = Path(__file__).parent.parent.parent / "data"
+    spaces_path = data_dir / "spaces.yaml"
+    if spaces_path.exists():
+        try:
+            specs = load_spaces(spaces_path)
+        except ValueError as exc:
+            print(f"Warning: Failed to load spaces.yaml while loading state: {exc}")
+            specs = {}
+        for space_id, spec in specs.items():
+            space = s.spaces.get(space_id)
+            if space is None:
+                continue
+            if not space.tags:
+                space.tags = list(spec.tags)
+            if not space.fixtures:
+                space.fixtures = list(spec.fixtures)
+            if not space.utilities_available:
+                space.utilities_available = list(spec.utilities_available)
     items = []
     for it in raw["items"]:
         item_data = dict(it)
