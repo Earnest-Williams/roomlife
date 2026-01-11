@@ -193,8 +193,8 @@ def test_sell_action_grants_resource_management_skill():
     """Test that selling items grants resource_management skill XP.
     
     Note: The skill gain from a single sell action (0.3 base) may be offset by
-    skill rust (0.425 per tick with default discipline of 50), so we start with
-    an existing skill value to verify that the gain is applied before rust.
+    skill rust when time advances, so we start with an existing skill value to
+    verify that the gain is applied before rust.
     """
     state = new_game()
     
@@ -224,16 +224,21 @@ def test_sell_action_grants_resource_management_skill():
     sell_events = [e for e in state.event_log if e["event_id"] == "shopping.sell"]
     assert len(sell_events) == 1
     assert "skill_gain" in sell_events[0]["params"]
-    assert sell_events[0]["params"]["skill_gain"] > 0
+    skill_gain_logged = sell_events[0]["params"]["skill_gain"]
+    assert skill_gain_logged > 0
     
     # The final skill value will be: initial + gain - rust
-    # Skill gain: ~0.345 (0.3 * 1.15 curiosity modifier)
-    # Rust: ~0.425 (0.5 rust_rate * 0.85 discipline modifier)
-    # Net: initial + 0.345 - 0.425 = initial - 0.08
-    # So with initial=5.0, we expect ~4.92
-    final_skill_value = state.player.skills_detailed["resource_management"].value
-    # The skill should have decreased slightly due to rust being larger than gain
-    assert 4.8 < final_skill_value < 5.0, f"Expected ~4.92, got {final_skill_value}"
+    # We know the gain from the event log, and can calculate expected final value
+    # Rust is skill.rust_rate * ticks_passed * (1.0 - discipline/100 * 0.3)
+    skill = state.player.skills_detailed["resource_management"]
+    rust_per_tick = skill.rust_rate * (1.0 - state.player.traits.discipline / 100.0 * 0.3)
+    # Time advanced by 1 tick during the action
+    expected_final = initial_skill_value + skill_gain_logged - rust_per_tick
+    
+    final_skill_value = skill.value
+    # Allow for small floating point differences (within 0.01)
+    assert abs(final_skill_value - expected_final) < 0.01, \
+        f"Expected {expected_final:.3f}, got {final_skill_value:.3f}"
 
 
 def test_sell_action_tracks_frugality_habit():
