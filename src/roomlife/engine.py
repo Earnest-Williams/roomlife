@@ -279,8 +279,17 @@ def _check_job_requirements(state: State, job_id: str) -> Tuple[bool, str]:
                 return False, f"missing_{tag}"
 
     # If require_all is False, check if at least one category is met
+    # Only check categories that actually have requirements
     if not require_all:
-        if skill_met or trait_met or item_met:
+        met_categories = []
+        if len(skill_reqs) > 0:
+            met_categories.append(skill_met)
+        if len(trait_reqs) > 0:
+            met_categories.append(trait_met)
+        if len(item_reqs) > 0:
+            met_categories.append(item_met)
+
+        if len(met_categories) > 0 and any(met_categories):
             return True, ""
         return False, "insufficient_any_requirement"
 
