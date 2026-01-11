@@ -309,6 +309,52 @@ class RoomLifeAPI:
 
             return ActionValidation(valid=True, action_id=action_id)
 
+        # Handle purchase actions
+        if action_id.startswith("purchase_"):
+            item_id = action_id[9:]  # Remove "purchase_" prefix
+            from .engine import _get_item_metadata
+
+            metadata = _get_item_metadata(item_id)
+            price = metadata.get("price", 0)
+
+            if price <= 0:
+                return ActionValidation(
+                    valid=False,
+                    action_id=action_id,
+                    reason="Item not available for purchase",
+                )
+
+            if self.state.player.money_pence < price:
+                missing.append(f"need {price}p (have {self.state.player.money_pence}p)")
+                return ActionValidation(
+                    valid=False,
+                    action_id=action_id,
+                    reason="Insufficient funds",
+                    missing_requirements=missing,
+                )
+
+            return ActionValidation(valid=True, action_id=action_id)
+
+        # Handle sell actions
+        if action_id.startswith("sell_"):
+            item_id = action_id[5:]  # Remove "sell_" prefix
+
+            # Find the item at current location
+            item_to_sell = None
+            for item in self.state.items:
+                if item.item_id == item_id and item.placed_in == self.state.world.location:
+                    item_to_sell = item
+                    break
+
+            if item_to_sell is None:
+                return ActionValidation(
+                    valid=False,
+                    action_id=action_id,
+                    reason="Item not found at current location",
+                )
+
+            return ActionValidation(valid=True, action_id=action_id)
+
         # List of known non-movement actions
         known_actions = {
             "work", "study", "sleep", "eat_charity_rice", "cook_basic_meal",

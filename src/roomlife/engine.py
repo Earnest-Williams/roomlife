@@ -842,8 +842,8 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
             metadata = _get_item_metadata(item_id)
             base_price = metadata.get("price", 0)
 
-            # Starter / zero-priced items cannot be sold
-            if base_price <= 0:
+            # Items with negative price cannot be sold
+            if base_price < 0:
                 _log(state, "action.failed", action_id=action_id, reason="item_not_sellable")
             else:
                 # Calculate sell price: 40% of base price, adjusted by condition
