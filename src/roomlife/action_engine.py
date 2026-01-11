@@ -11,7 +11,7 @@ import random
 
 from .models import State, Item, generate_instance_id
 from .content_specs import ActionSpec, ItemMeta
-from .constants import SKILL_TO_APTITUDE
+from .constants import MAX_EVENT_LOG, SKILL_TO_APTITUDE
 from .param_resolver import select_item_instance, validate_connected_to_param, validate_parameters
 
 
@@ -24,6 +24,8 @@ def _log(state: State, event_id: str, **params: Any) -> None:
         **params: Event parameters
     """
     state.event_log.append({"event_id": event_id, "params": params})
+    if len(state.event_log) > MAX_EVENT_LOG:
+        del state.event_log[:-MAX_EVENT_LOG]
 
 
 def _clamp100(x: int) -> int:

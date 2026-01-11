@@ -10,8 +10,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 import yaml
+from yaml.nodes import MappingNode, ScalarNode, SequenceNode
 
 
 @dataclass(frozen=True)
@@ -107,10 +108,18 @@ def load_actions(path: str | Path) -> Dict[str, ActionSpec]:
     if not file_path.exists():
         return {}
 
-    raw = yaml.safe_load(file_path.read_text(encoding="utf-8"))
+    text = file_path.read_text(encoding="utf-8")
+    raw = yaml.safe_load(text) or {}
     out: Dict[str, ActionSpec] = {}
 
-    for a in raw.get("actions", []):
+    actions = raw.get("actions", [])
+    line_map, index_lines = _action_line_map(text)
+    if not isinstance(actions, list):
+        raise ValueError(f"{file_path}: actions must be a list")
+
+    for idx, a in enumerate(actions):
+        line = _get_action_line(a, line_map, index_lines, idx)
+        _validate_action_dict(a, file_path, line)
         out[a["id"]] = ActionSpec(
             id=a["id"],
             display_name=a.get("display_name", a["id"]),
@@ -126,6 +135,102 @@ def load_actions(path: str | Path) -> Dict[str, ActionSpec]:
         )
 
     return out
+
+
+def _action_line_map(text: str) -> tuple[Dict[str, int], List[int]]:
+    try:
+        root = yaml.compose(text)
+    except yaml.YAMLError:
+        return {}, []
+    if not isinstance(root, MappingNode):
+        return {}, []
+
+    actions_node = None
+    for key_node, value_node in root.value:
+        if isinstance(key_node, ScalarNode) and key_node.value == "actions":
+            actions_node = value_node
+            break
+
+    if not isinstance(actions_node, SequenceNode):
+        return {}, []
+
+    line_map: Dict[str, int] = {}
+    index_lines: List[int] = []
+    for idx, action_node in enumerate(actions_node.value):
+        line = action_node.start_mark.line + 1
+        index_lines.append(line)
+        if isinstance(action_node, MappingNode):
+            for key_node, value_node in action_node.value:
+                if isinstance(key_node, ScalarNode) and key_node.value == "id":
+                    line_map[str(value_node.value)] = value_node.start_mark.line + 1
+                    break
+        else:
+            line_map[f"__index_{idx}"] = line
+
+    return line_map, index_lines
+
+
+def _get_action_line(
+    action: Any,
+    line_map: Dict[str, int],
+    index_lines: List[int],
+    index: int,
+) -> int | None:
+    if isinstance(action, dict):
+        action_id = action.get("id")
+        if isinstance(action_id, str) and action_id in line_map:
+            return line_map[action_id]
+    if index < len(index_lines):
+        return index_lines[index]
+    return None
+
+
+def _validate_action_dict(action: Any, file_path: Path, line: int | None) -> None:
+    if not isinstance(action, dict):
+        raise ValueError(_format_action_error(file_path, line, "action must be a mapping"))
+    action_id = action.get("id")
+    if not isinstance(action_id, str) or not action_id:
+        raise ValueError(_format_action_error(file_path, line, "action id must be a string"))
+
+    outcomes = action.get("outcomes", {})
+    if not isinstance(outcomes, dict):
+        raise ValueError(_format_action_error(file_path, line, f"{action_id}: outcomes must be a mapping"))
+
+    for tier, outcome in outcomes.items():
+        if not isinstance(outcome, dict):
+            raise ValueError(_format_action_error(
+                file_path,
+                line,
+                f"{action_id}: outcome for tier {tier} must be a mapping",
+            ))
+        deltas = outcome.get("deltas", {})
+        if deltas is not None and not isinstance(deltas, dict):
+            raise ValueError(_format_action_error(
+                file_path,
+                line,
+                f"{action_id}: deltas for tier {tier} must be a mapping",
+            ))
+        skills_xp = deltas.get("skills_xp", {}) if deltas else {}
+        if skills_xp is not None and not isinstance(skills_xp, dict):
+            raise ValueError(_format_action_error(
+                file_path,
+                line,
+                f"{action_id}: skills_xp for tier {tier} must be a mapping",
+            ))
+        if isinstance(skills_xp, dict):
+            for skill_name, xp_value in skills_xp.items():
+                if not isinstance(xp_value, (int, float)):
+                    raise ValueError(_format_action_error(
+                        file_path,
+                        line,
+                        f"{action_id}: skills_xp.{skill_name} must be numeric",
+                    ))
+
+
+def _format_action_error(file_path: Path, line: int | None, message: str) -> str:
+    if line is not None:
+        return f"{file_path}:{line}: {message}"
+    return f"{file_path}: {message}"
 
 
 def load_spaces(path: str | Path) -> Dict[str, SpaceSpec]:
