@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 from uuid import uuid4
@@ -124,8 +125,22 @@ class State:
         return [item for item in self.items if item.placed_in == location]
 
 
-def generate_instance_id() -> str:
-    return f"it_{uuid4().hex[:8]}"
+def generate_instance_id(rng: Optional[random.Random] = None) -> str:
+    """Generate a unique instance ID for an item.
+
+    Args:
+        rng: Optional random number generator for deterministic ID generation.
+             If None, uses uuid4() for true randomness.
+
+    Returns:
+        A unique instance ID string.
+    """
+    if rng is not None:
+        # Use deterministic random hex string
+        hex_str = ''.join(rng.choice('0123456789abcdef') for _ in range(8))
+        return f"it_{hex_str}"
+    else:
+        return f"it_{uuid4().hex[:8]}"
 
 
 def inventory_bulk(state: State) -> int:

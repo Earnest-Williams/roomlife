@@ -1,5 +1,5 @@
 from roomlife.engine import apply_action, new_game
-from roomlife.models import Item
+from roomlife.models import Item, generate_instance_id
 
 
 def test_discard_removes_item_without_money():
@@ -8,12 +8,14 @@ def test_discard_removes_item_without_money():
 
     # Add an item to discard
     state.items.append(Item(
+        instance_id=generate_instance_id(),
         item_id="bed_standard",
-        condition="pristine",
-        condition_value=100,
         placed_in="room_001",
+        container=None,
         slot="floor",
-        quality=1.0
+        quality=1.0,
+        condition="pristine",
+        condition_value=100
     ))
 
     initial_money = state.player.money_pence
@@ -43,12 +45,14 @@ def test_discard_item_not_at_current_location():
 
     # Add an item at a different location
     state.items.append(Item(
+        instance_id=generate_instance_id(),
         item_id="bed_standard",
-        condition="pristine",
-        condition_value=100,
         placed_in="room_002",  # Different location
+        container=None,
         slot="floor",
-        quality=1.0
+        quality=1.0,
+        condition="pristine",
+        condition_value=100
     ))
 
     initial_item_count = len(state.items)
@@ -93,12 +97,14 @@ def test_discard_tracks_minimalism_habit():
 
     # Add an item to discard
     state.items.append(Item(
+        instance_id=generate_instance_id(),
         item_id="desk_basic",
-        condition="worn",
-        condition_value=50,
         placed_in="room_001",
+        container=None,
         slot="floor",
-        quality=1.0
+        quality=1.0,
+        condition="worn",
+        condition_value=50
     ))
 
     initial_minimalism = state.player.habit_tracker.get("minimalism", 0)
@@ -117,12 +123,14 @@ def test_discard_works_for_unsellable_items():
 
     # Add a hypothetical zero-price item (using fallback metadata)
     state.items.append(Item(
+        instance_id=generate_instance_id(),
         item_id="worthless_item",  # Non-existent item gets price 0 from fallback
-        condition="broken",
-        condition_value=10,
         placed_in="room_001",
+        container=None,
         slot="floor",
-        quality=0.5
+        quality=0.5,
+        condition="broken",
+        condition_value=10
     ))
 
     initial_item_count = len(state.items)
@@ -145,20 +153,24 @@ def test_multiple_discards_in_sequence():
 
     # Add multiple items
     state.items.append(Item(
+        instance_id=generate_instance_id(),
         item_id="bed_standard",
-        condition="pristine",
-        condition_value=100,
         placed_in="room_001",
+        container=None,
         slot="floor",
-        quality=1.0
+        quality=1.0,
+        condition="pristine",
+        condition_value=100
     ))
     state.items.append(Item(
+        instance_id=generate_instance_id(),
         item_id="desk_basic",
-        condition="worn",
-        condition_value=50,
         placed_in="room_001",
+        container=None,
         slot="floor",
-        quality=1.0
+        quality=1.0,
+        condition="worn",
+        condition_value=50
     ))
 
     initial_item_count = len(state.items)
@@ -185,12 +197,14 @@ def test_cannot_discard_same_item_twice():
 
     # Add an item
     state.items.append(Item(
+        instance_id=generate_instance_id(),
         item_id="bed_standard",
-        condition="pristine",
-        condition_value=100,
         placed_in="room_001",
+        container=None,
         slot="floor",
-        quality=1.0
+        quality=1.0,
+        condition="pristine",
+        condition_value=100
     ))
 
     initial_item_count = len(state.items)
@@ -221,12 +235,14 @@ def test_discard_logs_item_condition():
 
     # Add an item with specific condition
     state.items.append(Item(
+        instance_id=generate_instance_id(),
         item_id="desk_basic",
-        condition="worn",
-        condition_value=50,
         placed_in="room_001",
+        container=None,
         slot="floor",
-        quality=1.0
+        quality=1.0,
+        condition="worn",
+        condition_value=50
     ))
 
     # Discard the item
