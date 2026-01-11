@@ -67,6 +67,8 @@ def _load_item_tags() -> Dict[str, List[str]]:
 
 # Cache item tags to avoid reloading YAML repeatedly
 _ITEM_TAGS_CACHE = None
+_ITEM_METADATA_CACHE = None
+_SHOP_CATALOG_CACHE = None
 
 
 def _get_item_tags(item_id: str) -> List[str]:
@@ -75,6 +77,71 @@ def _get_item_tags(item_id: str) -> List[str]:
     if _ITEM_TAGS_CACHE is None:
         _ITEM_TAGS_CACHE = _load_item_tags()
     return _ITEM_TAGS_CACHE.get(item_id, [])
+
+
+def _load_item_metadata() -> Dict[str, dict]:
+    """Load item metadata (price, quality, description) from items.yaml."""
+    import yaml
+    from pathlib import Path
+
+    data_path = Path(__file__).parent.parent.parent / "data" / "items.yaml"
+    try:
+        with open(data_path, "r") as f:
+            data = yaml.safe_load(f)
+    except (FileNotFoundError, yaml.YAMLError, Exception) as e:
+        print(f"Warning: Failed to load items.yaml: {e}")
+        return {}
+
+    item_metadata = {}
+    try:
+        for item_def in data.get("items", []):
+            item_id = item_def["id"]
+            item_metadata[item_id] = {
+                "name": item_def.get("name", item_id),
+                "price": item_def.get("price", 0),
+                "quality": item_def.get("quality", 1.0),
+                "description": item_def.get("description", ""),
+                "tags": item_def.get("tags", []),
+            }
+    except (KeyError, TypeError) as e:
+        print(f"Warning: Malformed items.yaml data: {e}")
+    return item_metadata
+
+
+def _get_item_metadata(item_id: str) -> dict:
+    """Get metadata for a specific item."""
+    global _ITEM_METADATA_CACHE
+    if _ITEM_METADATA_CACHE is None:
+        _ITEM_METADATA_CACHE = _load_item_metadata()
+    return _ITEM_METADATA_CACHE.get(item_id, {
+        "name": item_id,
+        "price": 0,
+        "quality": 1.0,
+        "description": "",
+        "tags": [],
+    })
+
+
+def _load_shop_catalog() -> dict:
+    """Load shop catalog from shop_catalog.yaml."""
+    import yaml
+    from pathlib import Path
+
+    data_path = Path(__file__).parent.parent.parent / "data" / "shop_catalog.yaml"
+    try:
+        with open(data_path, "r") as f:
+            return yaml.safe_load(f) or {}
+    except (FileNotFoundError, yaml.YAMLError, Exception) as e:
+        print(f"Warning: Failed to load shop_catalog.yaml: {e}")
+        return {}
+
+
+def _get_shop_catalog() -> dict:
+    """Get the shop catalog (cached)."""
+    global _SHOP_CATALOG_CACHE
+    if _SHOP_CATALOG_CACHE is None:
+        _SHOP_CATALOG_CACHE = _load_shop_catalog()
+    return _SHOP_CATALOG_CACHE
 
 
 def _find_item_with_tag(state: State, tag: str, location: str = None) -> Item | None:
@@ -90,17 +157,22 @@ def _find_item_with_tag(state: State, tag: str, location: str = None) -> Item | 
 
 
 def _get_item_effectiveness(item: Item) -> float:
-    """Calculate item effectiveness multiplier based on condition_value (0-100)."""
+    """Calculate item effectiveness multiplier based on condition_value (0-100) and quality."""
+    # Base effectiveness from condition
     if item.condition_value >= 90:
-        return 1.1  # pristine items give bonus
+        condition_mult = 1.1  # pristine items give bonus
     elif item.condition_value >= 70:
-        return 1.0  # used items work normally
+        condition_mult = 1.0  # used items work normally
     elif item.condition_value >= 40:
-        return 0.8  # worn items less effective
+        condition_mult = 0.8  # worn items less effective
     elif item.condition_value >= 20:
-        return 0.5  # broken items barely work
+        condition_mult = 0.5  # broken items barely work
     else:
-        return 0.3  # filthy items very poor
+        condition_mult = 0.3  # filthy items very poor
+
+    # Combine condition and quality multipliers
+    # Quality ranges from 0.8 (worn desk) to 1.8 (premium computer)
+    return condition_mult * item.quality
 
 
 def _update_item_condition_string(item: Item) -> None:
@@ -218,11 +290,28 @@ def new_game() -> State:
         "hall_001": Space("hall_001", "Hallway", "shared", 12, False, ["room_001", "bath_001"]),
         "bath_001": Space("bath_001", "Shared bathroom", "shared", 13, False, ["hall_001"]),
     }
-    state.items = [
-        Item("bed_basic", condition="used", condition_value=80, placed_in="room_001", slot="floor"),
-        Item("desk_worn", condition="worn", condition_value=60, placed_in="room_001", slot="wall"),
-        Item("kettle", condition="used", condition_value=75, placed_in="room_001", slot="surface"),
+
+    # Create starter items with quality from metadata
+    # Items start at ~50% condition (worn) to reflect their degraded state
+    starter_items = [
+        ("bed_basic", "worn", 50, "room_001", "floor"),
+        ("desk_worn", "worn", 45, "room_001", "wall"),
+        ("kettle", "worn", 50, "room_001", "surface"),
     ]
+
+    state.items = []
+    for item_id, condition, condition_value, placed_in, slot in starter_items:
+        metadata = _get_item_metadata(item_id)
+        quality = metadata.get("quality", 1.0)
+        state.items.append(Item(
+            item_id=item_id,
+            condition=condition,
+            condition_value=condition_value,
+            placed_in=placed_in,
+            slot=slot,
+            quality=quality
+        ))
+
     # Validate that the starting location exists in the world
     if state.world.location not in state.spaces:
         raise ValueError(f"Starting location '{state.world.location}' does not exist in world spaces")
@@ -693,6 +782,91 @@ def apply_action(state: State, action_id: str, rng_seed: int = 1) -> None:
 
             _log(state, "action.move", from_location=from_space.name, to_location=to_space.name,
                  from_id=current_location, to_id=target_location)
+
+    elif action_id.startswith("purchase_"):
+        # Extract item_id from action_id (e.g., "purchase_bed_standard" -> "bed_standard")
+        item_id = action_id[9:]  # Remove "purchase_" prefix
+
+        # Load item metadata
+        metadata = _get_item_metadata(item_id)
+        if not metadata or metadata["price"] == 0:
+            _log(state, "action.failed", action_id=action_id, reason="item_not_for_sale")
+        else:
+            price = metadata["price"]
+            quality = metadata["quality"]
+            item_name = metadata["name"]
+
+            # Check if player has enough money
+            if state.player.money_pence < price:
+                _log(state, "action.failed", action_id=action_id, reason="insufficient_funds",
+                     required_pence=price, current_pence=state.player.money_pence)
+            else:
+                # Deduct money
+                state.player.money_pence -= price
+
+                # Create new item with pristine condition and quality from metadata
+                new_item = Item(
+                    item_id=item_id,
+                    condition="pristine",
+                    condition_value=100,
+                    placed_in=state.world.location,
+                    slot="floor",  # Default slot
+                    quality=quality
+                )
+                state.items.append(new_item)
+
+                # Gain resource management skill
+                gain = _gain_skill_xp(state, "resource_management", 0.5, current_tick)
+
+                # Track confidence habit (making purchases builds confidence)
+                _track_habit(state, "confidence", 3)
+
+                _log(state, "shopping.purchase", item_id=item_id, item_name=item_name,
+                     cost_pence=price, quality=quality, skill_gain=round(gain, 2))
+
+    elif action_id.startswith("sell_"):
+        # Extract item_id from action_id (e.g., "sell_bed_basic" -> "bed_basic")
+        item_id = action_id[5:]  # Remove "sell_" prefix
+
+        # Find the item in player's inventory at current location
+        item_to_sell = None
+        for item in state.items:
+            if item.item_id == item_id and item.placed_in == state.world.location:
+                item_to_sell = item
+                break
+
+        if item_to_sell is None:
+            _log(state, "action.failed", action_id=action_id, reason="item_not_found")
+        else:
+            # Get item metadata to determine base price
+            metadata = _get_item_metadata(item_id)
+            base_price = metadata.get("price", 0)
+
+            # Starter / zero-priced items cannot be sold
+            if base_price <= 0:
+                _log(state, "action.failed", action_id=action_id, reason="item_not_sellable")
+            else:
+                # Calculate sell price: 40% of base price, adjusted by condition
+                condition_multiplier = item_to_sell.condition_value / 100.0
+                sell_price = int(base_price * 0.4 * condition_multiplier)
+
+                # Minimum sell price
+                sell_price = max(100, sell_price)
+
+                # Add money to player
+                state.player.money_pence += sell_price
+
+                # Remove item from state
+                state.items.remove(item_to_sell)
+
+                # Gain resource management skill
+                gain = _gain_skill_xp(state, "resource_management", 0.3, current_tick)
+
+                # Track frugality habit
+                _track_habit(state, "frugality", 5)
+
+                _log(state, "shopping.sell", item_id=item_id, item_name=metadata.get("name", item_id),
+                     earned_pence=sell_price, condition=item_to_sell.condition, skill_gain=round(gain, 2))
 
     else:
         _log(state, "action.unknown", action_id=action_id)

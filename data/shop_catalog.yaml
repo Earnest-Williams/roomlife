@@ -1,0 +1,94 @@
+# Shop Catalog - Defines purchasable items organized by category
+# Items with price: 0 are starter items and not shown in shop
+
+categories:
+  - name: Bedroom Furniture
+    id: bedroom
+    description: Improve your sleep quality and rest
+    items:
+      - bed_standard
+      - bed_premium
+      - bed_luxury
+
+  - name: Office Furniture
+    id: office
+    description: Upgrade your workspace for better productivity
+    items:
+      - desk_basic
+      - desk_standard
+      - desk_premium
+      - chair_basic
+      - chair_ergonomic
+      - chair_luxury
+
+  - name: Kitchen Appliances
+    id: kitchen
+    description: Better cooking equipment for healthier meals
+    items:
+      - microwave
+      - stove_basic
+      - stove_premium
+      - fridge
+
+  - name: Lighting
+    id: lighting
+    description: Better lighting improves work efficiency and mood
+    items:
+      - lamp_desk
+      - lamp_floor
+      - lamp_premium
+
+  - name: Living Room
+    id: living
+    description: Comfort and entertainment for relaxation
+    items:
+      - sofa_basic
+      - sofa_premium
+      - tv_basic
+      - tv_premium
+
+  - name: Decorations
+    id: decor
+    description: Personalize your space and boost mood
+    items:
+      - rug
+      - plant
+      - painting
+
+  - name: Bathroom
+    id: bathroom
+    description: Enhance your hygiene routine
+    items:
+      - towel
+      - towel_premium
+      - bath_mat
+
+  - name: Exercise Equipment
+    id: exercise
+    description: Stay fit and healthy at home
+    items:
+      - yoga_mat
+      - dumbbells
+      - exercise_bike
+
+  - name: Cleaning
+    id: cleaning
+    description: Keep your space clean more efficiently
+    items:
+      - cleaning_supplies
+      - vacuum
+
+  - name: Study & Tech
+    id: study
+    description: Boost your learning and work capabilities
+    items:
+      - bookshelf
+      - bookshelf_large
+      - computer
+      - computer_premium
+
+# Special offers (future feature)
+# promotions:
+#   - item_id: computer
+#     discount_percent: 10
+#     valid_until_day: 30

@@ -758,4 +758,66 @@ class RoomLifeAPI:
                     cost_pence=cost,
                 ))
 
+        # Add shopping actions based on shop catalog
+        from .engine import _get_shop_catalog, _get_item_metadata
+        catalog = _get_shop_catalog()
+        categories = catalog.get("categories", [])
+
+        for category in categories:
+            category_items = category.get("items", [])
+
+            for item_id in category_items:
+                metadata = _get_item_metadata(item_id)
+                if metadata and metadata["price"] > 0:
+                    price = metadata["price"]
+                    quality = metadata["quality"]
+                    item_name = metadata["name"]
+                    description = metadata.get("description", "")
+
+                    # Check if player already owns this item
+                    # (You can still buy duplicates, but show ownership info)
+                    owned_count = sum(1 for item in self.state.items if item.item_id == item_id)
+                    ownership_note = f" (owned: {owned_count})" if owned_count > 0 else ""
+
+                    actions.append(ActionMetadata(
+                        action_id=f"purchase_{item_id}",
+                        display_name=f"Buy {item_name}",
+                        description=f"{description} [Quality: {quality}x]{ownership_note}",
+                        category=ActionCategory.SHOPPING,
+                        requirements={"money": f"{price}p"},
+                        effects={
+                            "money": f"-{price}p",
+                            "item_acquired": item_name,
+                            "quality": f"{quality}x",
+                            "skill": "resource_management +0.5",
+                        },
+                        cost_pence=price,
+                    ))
+
+        # Add sell actions for items at current location
+        for item in items_at_location:
+            metadata = _get_item_metadata(item.item_id)
+            base_price = metadata.get("price", 0)
+
+            # Calculate sell price
+            if base_price > 0:
+                condition_multiplier = item.condition_value / 100.0
+                sell_price = int(base_price * 0.4 * condition_multiplier)
+                sell_price = max(100, sell_price)
+
+                item_display_name = metadata.get("name", item.item_id.replace('_', ' ').title())
+                actions.append(ActionMetadata(
+                    action_id=f"sell_{item.item_id}",
+                    display_name=f"Sell {item_display_name}",
+                    description=f"Sell {item_display_name} ({item.condition}) for {sell_price}p (40% of base price)",
+                    category=ActionCategory.SHOPPING,
+                    requirements={},
+                    effects={
+                        "money": f"+{sell_price}p",
+                        "item_removed": item_display_name,
+                        "skill": "resource_management +0.3",
+                    },
+                    cost_pence=-sell_price,  # Negative cost means gain
+                ))
+
         return actions
