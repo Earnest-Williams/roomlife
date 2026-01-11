@@ -1,6 +1,13 @@
 from roomlife.engine import apply_action, new_game
 
 
+def _get_failed_events(state, reason):
+    """Helper function to get failed events by reason."""
+    return [e for e in state.event_log 
+            if e["event_id"] == "action.failed" 
+            and e["params"].get("reason") == reason]
+
+
 def test_successful_purchase_deducts_money_and_adds_item():
     """Test that a successful purchase deducts money and adds the item to inventory."""
     state = new_game()
@@ -53,9 +60,7 @@ def test_insufficient_funds_rejected():
     assert len(state.items) == initial_item_count
     
     # Check that a failure event was logged
-    failed_events = [e for e in state.event_log 
-                     if e["event_id"] == "action.failed" 
-                     and e["params"].get("reason") == "insufficient_funds"]
+    failed_events = _get_failed_events(state, "insufficient_funds")
     assert len(failed_events) == 1
     assert failed_events[0]["params"]["required_pence"] == 2500
     assert failed_events[0]["params"]["current_pence"] == 1000
@@ -80,9 +85,7 @@ def test_cannot_purchase_items_with_price_zero():
     assert len(state.items) == initial_item_count
     
     # Check that a failure event was logged
-    failed_events = [e for e in state.event_log 
-                     if e["event_id"] == "action.failed" 
-                     and e["params"].get("reason") == "item_not_for_sale"]
+    failed_events = _get_failed_events(state, "item_not_for_sale")
     assert len(failed_events) == 1
 
 
@@ -214,7 +217,5 @@ def test_purchase_with_one_pence_short():
     assert len(state.items) == initial_item_count
     
     # Check failure event
-    failed_events = [e for e in state.event_log 
-                     if e["event_id"] == "action.failed" 
-                     and e["params"].get("reason") == "insufficient_funds"]
+    failed_events = _get_failed_events(state, "insufficient_funds")
     assert len(failed_events) == 1
