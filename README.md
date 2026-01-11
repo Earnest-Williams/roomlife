@@ -77,6 +77,19 @@ Features:
 - Save/Load functionality
 - Location and time tracking
 
+## Development
+
+### Utility Scripts
+
+The `scripts/` directory contains helper scripts for development:
+
+```bash
+./scripts/fmt.sh    # Format code with ruff
+./scripts/lint.sh   # Lint code with ruff
+./scripts/test.sh   # Run pytest test suite
+./scripts/run.sh    # Quick game status check
+```
+
 ## Layout
 - `src/roomlife/`: engine, models, IO, view-model, CLI, API
   - `api_service.py`: Main RoomLife API service
@@ -85,6 +98,7 @@ Features:
 - `data/`: content (YAML)
 - `saves/`: save snapshots
 - `tests/`: determinism and invariants
+- `scripts/`: development utility scripts (format, lint, test, run)
 - `examples/`: API usage examples (basic, CLI, REST server, event streaming)
 - `examples/README.md`: How to run each example
 - `roomlife_gui.py`: Tkinter GUI application
