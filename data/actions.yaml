@@ -1332,7 +1332,7 @@ actions:
     time_minutes: 15
     parameters:
       - name: target_npc_id
-        type: npc_id
+        type: string
         required: true
     requires:
       location:
@@ -1392,7 +1392,7 @@ actions:
     time_minutes: 10
     parameters:
       - name: target_npc_id
-        type: npc_id
+        type: string
         required: true
     requires:
       location:
@@ -1453,7 +1453,7 @@ actions:
     time_minutes: 2
     parameters:
       - name: target_npc_id
-        type: npc_id
+        type: string
         required: true
     requires:
       location:

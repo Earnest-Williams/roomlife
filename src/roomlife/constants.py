@@ -7,6 +7,8 @@ TIME_SLICES = ["morning", "afternoon", "evening", "night"]
 
 # All skill names in the system
 SKILL_NAMES = [
+    "cooking",
+    "bartending",
     "technical_literacy",
     "analysis",
     "resource_management",
@@ -23,6 +25,8 @@ SKILL_NAMES = [
 
 # Mapping of skills to their governing aptitudes
 SKILL_TO_APTITUDE = {
+    "cooking": "body",
+    "bartending": "social_grace",
     "technical_literacy": "logic_systems",
     "analysis": "logic_systems",
     "resource_management": "logic_systems",
@@ -79,6 +83,25 @@ REST_INJURY_RECOVERY = 5  # Injury recovered from rest action
 
 # Job System
 JOBS = {
+    "bartender": {
+        "name": "Bartender",
+        "base_pay": 4200,
+        "requirements": {
+            "skills": [
+                {"name": "bartending", "min": 20},
+            ],
+            "traits": [
+                {"name": "charisma", "min": 50},
+            ],
+            "require_all": True,
+        },
+        "description": "Serve drinks and manage the bar. Requires bartending skills and charm.",
+        "skill_gains": {
+            "bartending": 1.0,
+            "presence": 0.3,
+        },
+        "fatigue_cost": 12,
+    },
     "recycling_collector": {
         "name": "Recycling Collector",
         "base_pay": 2400,  # Barely covers bills (2000p) with minimal saving

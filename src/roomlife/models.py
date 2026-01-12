@@ -9,6 +9,15 @@ from uuid import uuid4
 from .constants import MAX_EVENT_LOG, SKILL_NAMES
 
 
+class EventLog(deque):
+    """Deque with slice support for recent event queries."""
+
+    def __getitem__(self, index):  # type: ignore[override]
+        if isinstance(index, slice):
+            return list(self)[index]
+        return super().__getitem__(index)
+
+
 @dataclass
 class Utilities:
     power: bool = True
@@ -43,6 +52,7 @@ class Aptitudes:
     social_grace: float = 1.0
     domesticity: float = 1.0
     vitality: float = 1.0
+    body: float = 1.0
 
 
 @dataclass
@@ -51,6 +61,7 @@ class Traits:
     confidence: int = 50
     empathy: int = 50
     fitness: int = 50
+    charisma: int = 50
     frugality: int = 50
     curiosity: int = 50
     stoicism: int = 50
@@ -149,7 +160,7 @@ class State:
     utilities: Utilities = field(default_factory=Utilities)
     spaces: Dict[str, Space] = field(default_factory=dict)
     items: List[Item] = field(default_factory=list)
-    event_log: Deque[dict] = field(default_factory=lambda: deque(maxlen=MAX_EVENT_LOG))
+    event_log: Deque[dict] = field(default_factory=lambda: EventLog(maxlen=MAX_EVENT_LOG))
     npcs: Dict[str, NPC] = field(default_factory=dict)  # Building NPCs by id
 
     def get_items_at(self, location: str) -> List[Item]:

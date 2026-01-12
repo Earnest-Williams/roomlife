@@ -110,6 +110,7 @@ class RoomLifeAPI:
             confidence=self.state.player.traits.confidence,
             empathy=self.state.player.traits.empathy,
             fitness=self.state.player.traits.fitness,
+            charisma=self.state.player.traits.charisma,
             frugality=self.state.player.traits.frugality,
             curiosity=self.state.player.traits.curiosity,
             stoicism=self.state.player.traits.stoicism,
@@ -144,6 +145,7 @@ class RoomLifeAPI:
             "social_grace": self.state.player.aptitudes.social_grace,
             "domesticity": self.state.player.aptitudes.domesticity,
             "vitality": self.state.player.aptitudes.vitality,
+            "body": self.state.player.aptitudes.body,
         }
 
         # Build current location with items
