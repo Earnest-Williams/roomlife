@@ -469,7 +469,7 @@ def new_game(seed: Optional[int] = None) -> State:
                 "shared",
                 12,
                 False,
-                ["room_001", "bath_001"],
+                ["room_001", "bath_001", "kitchen_001"],
                 tags=["hallway", "transit"],
                 fixtures=[],
                 utilities_available=["power"],
@@ -485,6 +485,17 @@ def new_game(seed: Optional[int] = None) -> State:
                 fixtures=["shower", "sink", "toilet"],
                 utilities_available=["water", "heat", "power"],
             ),
+            "kitchen_001": Space(
+                "kitchen_001",
+                "Shared kitchen",
+                "shared",
+                16,
+                False,
+                ["hall_001"],
+                tags=["kitchen"],
+                fixtures=["sink", "stove_spot"],
+                utilities_available=["power", "heat", "water"],
+            ),
         }
 
     # Create starter items with quality from metadata
@@ -492,7 +503,7 @@ def new_game(seed: Optional[int] = None) -> State:
     starter_items = [
         ("bed_basic", "worn", 50, "room_001", "floor"),
         ("desk_worn", "worn", 45, "room_001", "wall"),
-        ("kettle", "worn", 50, "room_001", "surface"),
+        ("kettle", "worn", 50, "kitchen_001", "counter"),
     ]
 
     state.items = []

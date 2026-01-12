@@ -63,6 +63,7 @@ class TraitsSnapshot:
     confidence: int
     empathy: int
     fitness: int
+    charisma: int
     frugality: int
     curiosity: int
     stoicism: int

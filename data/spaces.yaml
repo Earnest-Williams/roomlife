@@ -16,7 +16,7 @@ spaces:
     kind: shared
     base_temperature_c: 12
     has_window: false
-    connections: [room_001, bath_001]
+    connections: [room_001, bath_001, kitchen_001]
     tags: ["hallway", "transit"]
     fixtures: []
     utilities_available: ["power"]
@@ -30,3 +30,13 @@ spaces:
     tags: ["bathroom"]
     fixtures: ["shower", "sink", "toilet"]
     utilities_available: ["water", "heat", "power"]
+
+  - id: kitchen_001
+    name: Shared kitchen
+    kind: shared
+    base_temperature_c: 16
+    has_window: false
+    connections: [hall_001]
+    tags: ["kitchen"]
+    fixtures: ["sink", "stove_spot"]
+    utilities_available: ["power", "heat", "water"]

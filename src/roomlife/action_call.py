@@ -11,6 +11,8 @@ class ActionCall:
 
     @staticmethod
     def from_legacy(action_id: str) -> "ActionCall":
+        if action_id == "cook_meal":
+            return ActionCall("cook_basic_meal", {})
         if action_id.startswith("move_"):
             return ActionCall("move", {"target_space": action_id[len("move_"):]})
         if action_id.startswith("repair_"):

@@ -388,7 +388,10 @@ def clamp_tier(spec: ActionSpec, raw_tier: int) -> int:
         Clamped tier respecting the action's tier floor
     """
     mods = spec.modifiers or {}
-    floor = int(mods.get("tier_floor", 1) or 1)
+    if "tier_floor" in mods:
+        floor = int(mods["tier_floor"])
+    else:
+        floor = 1
     return max(floor, raw_tier)
 
 

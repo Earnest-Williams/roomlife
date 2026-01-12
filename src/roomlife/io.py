@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import random
-from collections import deque
 from dataclasses import asdict
 from pathlib import Path
 from typing import Dict
@@ -12,6 +11,7 @@ from .constants import MAX_EVENT_LOG, SKILL_NAMES
 from .content_specs import load_spaces
 from .models import (
     Aptitudes,
+    EventLog,
     Item,
     Needs,
     NPC,
@@ -130,7 +130,7 @@ def load_state(path: Path) -> State:
     s.items = items
 
     # Load event_log as bounded deque (maintains maxlen behavior from State definition)
-    s.event_log = deque(raw["event_log"], maxlen=MAX_EVENT_LOG)
+    s.event_log = EventLog(raw["event_log"], maxlen=MAX_EVENT_LOG)
 
     s.npcs = {}
     for npc_id, npc_data in (raw.get("npcs") or {}).items():
