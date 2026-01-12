@@ -70,6 +70,10 @@ def _actor_scope(state: State, npc: NPC):
 
     This context manager ensures state.player is always restored, even if tier computation raises.
 
+    The NPCActor proxy object provides NPC's skills/traits/aptitudes for tier computation,
+    but falls back to the original player for any other attributes. This prevents
+    AttributeError if tier computation or downstream code accesses additional Player attributes.
+
     Args:
         state: Game state
         npc: NPC to temporarily use as actor
@@ -78,15 +82,19 @@ def _actor_scope(state: State, npc: NPC):
         None
     """
     original_player = state.player
+
+    class NPCActor:
+        """Proxy that uses NPC skills/traits but delegates other attributes to original player."""
+
+        def __getattr__(self, name: str):
+            # Prefer NPC attributes for tier computation
+            if name in ('skills_detailed', 'aptitudes', 'traits'):
+                return getattr(npc, name)
+            # Fall back to original player for everything else (needs, money, etc.)
+            return getattr(original_player, name)
+
     try:
-        # Create a temporary player-like object with NPC's skills/traits
-        # We don't need full player state, just what tier computation needs
-        state.player = type('NPCActor', (), {
-            'skills_detailed': npc.skills_detailed,
-            'aptitudes': npc.aptitudes,
-            'traits': npc.traits,
-            'needs': original_player.needs,  # Use player needs for health penalty
-        })()  # type: ignore
+        state.player = NPCActor()  # type: ignore
         yield
     finally:
         state.player = original_player
@@ -193,13 +201,13 @@ def maybe_trigger_daily_building_event(
 
     # Compute tier under NPC scope (NPC is the actor for skill/trait computation)
     tier_seed = day_seed + stable_hash(chosen_action_id) + stable_hash(chosen_npc_id)
-    tier = 1  # Default tier
+    tier = 1  # Default tier (used if tier computation fails)
     try:
         with _actor_scope(state, npc):
             tier = compute_tier(state, chosen_spec, item_meta, rng_seed=tier_seed)
     except Exception as e:
         # If tier computation fails, log and use default tier
-        print(f"Warning: Tier computation failed for NPC event {chosen_action_id}: {e}")
+        _log(state, "npc.tier_computation_failed", action_id=chosen_action_id, error=str(e))
         tier = 1
 
     # Apply outcome to the player (state.player is now restored)
@@ -208,7 +216,7 @@ def maybe_trigger_daily_building_event(
     try:
         apply_outcome(state, chosen_spec, tier, item_meta, current_tick, emit_events=True)
     except Exception as e:
-        print(f"Warning: Outcome application failed for NPC event {chosen_action_id}: {e}")
+        _log(state, "npc.outcome_failed", action_id=chosen_action_id, error=str(e))
 
     # Log the NPC event
     _log(
@@ -277,8 +285,8 @@ def on_player_entered_space(
         return
 
     # Check if we've already had an encounter today
-    encounter_today_key = f"encounter.today.{state.world.day}"
-    if state.player.flags.get(encounter_today_key, 0) >= 1:
+    last_encounter_day = state.player.flags.get("encounter.last_day", -1)
+    if last_encounter_day == state.world.day:
         return  # At most 1 encounter per day
 
     # Choose an NPC deterministically
@@ -292,7 +300,7 @@ def on_player_entered_space(
 
     # Set encounter flag
     state.player.flags["encounter.available"] = npc_id
-    state.player.flags[encounter_today_key] = 1
+    state.player.flags["encounter.last_day"] = state.world.day
 
     # Log encounter
     _log(

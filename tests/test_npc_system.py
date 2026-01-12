@@ -87,12 +87,8 @@ def test_npc_event_scheduler_deterministic_by_seed_and_day():
 
 
 def test_npc_events_respect_cooldowns():
-    """Test that NPC events respect cooldown_days."""
+    """Test that NPC events respect cooldown_days by checking flags."""
     state = new_game(seed=123)
-
-    # Manually trigger an NPC event by advancing to day rollover
-    # We need at least one event to fire to test cooldowns
-    events_before = len([e for e in state.event_log if e["event_id"] == "npc.event"])
 
     # Advance 10 days (40 actions)
     for _ in range(10 * 4):
@@ -101,18 +97,25 @@ def test_npc_events_respect_cooldowns():
     # Count NPC events
     npc_events = [e for e in state.event_log if e["event_id"] == "npc.event"]
 
-    # Group by action_id to check cooldowns
-    action_id_days = {}
-    for e in npc_events:
-        action_id = e["params"].get("action_id")
-        # We don't have day info in events, but we can check that no action_id
-        # appears more frequently than its cooldown allows
-        if action_id not in action_id_days:
-            action_id_days[action_id] = []
-        action_id_days[action_id].append(e)
-
     # At least some NPC events should have fired over 10 days
     assert len(npc_events) > 0
+
+    # Check cooldown flags are properly set
+    # Cooldown flags follow pattern: "npc.cooldown.<action_id>"
+    cooldown_flags = {k: v for k, v in state.player.flags.items() if k.startswith("npc.cooldown.")}
+    assert len(cooldown_flags) > 0, "Expected cooldown flags to be set after NPC events"
+
+    # Verify cooldown flags are day numbers (positive integers)
+    for cooldown_day in cooldown_flags.values():
+        assert isinstance(cooldown_day, int)
+        assert cooldown_day >= 1, f"Cooldown day should be >= 1, got {cooldown_day}"
+        assert cooldown_day <= state.world.day, f"Cooldown day {cooldown_day} exceeds current day {state.world.day}"
+
+    # Verify each action_id has at most one cooldown flag
+    action_ids_from_events = set(e["params"].get("action_id") for e in npc_events)
+    action_ids_from_flags = set(k.replace("npc.cooldown.", "") for k in cooldown_flags.keys())
+    # All action_ids that fired should have cooldown flags
+    assert action_ids_from_events.issubset(action_ids_from_flags)
 
 
 def test_npc_events_apply_outcomes_to_player():
@@ -128,18 +131,14 @@ def test_npc_events_apply_outcomes_to_player():
             npc_event_fired = True
             break
 
-    # If an NPC event fired, verify events contain expected fields
-    if npc_event_fired:
-        npc_events = [e for e in state.event_log if e["event_id"] == "npc.event"]
-        assert len(npc_events) > 0
+    # Verify NPC events have proper structure (if any fired)
+    npc_events = [e for e in state.event_log if e["event_id"] == "npc.event"]
+    if len(npc_events) > 0:
         # Check event structure
         for event in npc_events:
             assert "npc_id" in event["params"]
             assert "action_id" in event["params"]
             assert "tier" in event["params"]
-    else:
-        # If no event fired in 10 days, that's also valid (low probability but possible)
-        assert True
 
 
 def test_npc_event_tier_computation_uses_npc_skills():
