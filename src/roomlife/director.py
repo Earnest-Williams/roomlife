@@ -30,7 +30,7 @@ def stable_hash(s: str) -> int:
 
 
 def _log(state: State, event_id: str, **params: Any) -> None:
-    """Log an event to the state's event log.
+    """Log an event to the state's event log (automatically trims via deque maxlen).
 
     Args:
         state: Game state
@@ -38,8 +38,6 @@ def _log(state: State, event_id: str, **params: Any) -> None:
         **params: Event parameters
     """
     state.event_log.append({"event_id": event_id, "params": params})
-    if len(state.event_log) > MAX_EVENT_LOG:
-        state.event_log = state.event_log[-MAX_EVENT_LOG:]
 
 
 def _score_action_urgency(state: State, action_id: str, spec: Any) -> float:

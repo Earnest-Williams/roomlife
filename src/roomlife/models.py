@@ -134,7 +134,11 @@ class World:
     slice: str = "morning"       # morning/afternoon/evening/night
     location: str = "room_001"
     rng_seed: int = 0            # Simulation seed for deterministic NPCs/director
-    rng: random.Random = field(default_factory=random.Random)  # Reusable RNG instance
+    rng: random.Random = field(
+        default_factory=random.Random,
+        repr=False,
+        compare=False,
+    )  # Reusable RNG instance (excluded from serialization via custom save/load)
 
 
 @dataclass
