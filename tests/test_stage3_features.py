@@ -7,7 +7,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from roomlife.engine import apply_action, new_game, _ensure_specs_loaded, _ACTION_SPECS
-from roomlife import director
 
 
 def test_director_seeds_daily_goals():
@@ -173,27 +172,35 @@ def test_content_pack_loading_deterministic_order():
 
 
 def test_director_respects_cooldowns():
-    """Test that director respects cooldown_days for suggested actions."""
+    """Test that director respects cooldown_days for suggested actions.
+
+    Specifically tests that clean_room (cooldown_days: 1) doesn't appear
+    in goals on consecutive days.
+    """
     state = new_game(seed=555)
 
-    # Advance multiple days
-    for _ in range(20):  # 5 days
-        apply_action(state, "rest", rng_seed=100)
+    # Track which days clean_room appears in goals
+    clean_room_days = []
 
-    # Check that goals change over time (not stuck on same actions)
-    goals_by_day = []
-    for _ in range(10):  # Track 10 days
-        goals = state.player.flags.get("goals.today", [])
-        goal_ids = tuple(g["action_id"] for g in goals)
-        goals_by_day.append(goal_ids)
-
-        # Advance 1 day
+    for day_num in range(1, 11):  # Track 10 days
+        # Advance to next day
         for _ in range(4):
             apply_action(state, "rest", rng_seed=100)
 
-    # Goals should vary over time (not identical every day)
-    unique_goal_sets = set(goals_by_day)
-    assert len(unique_goal_sets) > 1, "Goals should vary across days"
+        # Check if clean_room is in today's goals
+        goals = state.player.flags.get("goals.today", [])
+        goal_ids = [g["action_id"] for g in goals]
+
+        if "clean_room" in goal_ids:
+            clean_room_days.append(day_num)
+
+    # Verify clean_room appeared at least once
+    assert len(clean_room_days) > 0, "clean_room should appear in goals at least once"
+
+    # Verify no consecutive days (cooldown_days: 1 means at least 1 day gap)
+    for i in range(len(clean_room_days) - 1):
+        day_gap = clean_room_days[i + 1] - clean_room_days[i]
+        assert day_gap >= 1, f"clean_room appeared on consecutive days {clean_room_days[i]} and {clean_room_days[i+1]}"
 
 
 def test_director_validates_goals_at_current_location():

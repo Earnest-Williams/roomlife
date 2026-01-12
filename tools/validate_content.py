@@ -12,13 +12,13 @@ Usage:
 
 import sys
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Any, Dict
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from roomlife import engine
-from roomlife.action_engine import validate_action_spec, compute_tier, preview_tier_distribution
+from roomlife.action_engine import preview_tier_distribution, validate_action_spec
 from roomlife.models import State
 
 

@@ -596,12 +596,12 @@ def _apply_environment(state: State, rng: random.Random) -> None:
         mishap_multiplier = 1.0
 
     n = state.player.needs
-    n.hunger = min(100, n.hunger + int(8 * needs_multiplier))
-    n.fatigue = min(100, n.fatigue + int(6 * needs_multiplier))
+    n.hunger = min(100, n.hunger + round(8 * needs_multiplier))
+    n.fatigue = min(100, n.fatigue + round(6 * needs_multiplier))
     if state.utilities.water:
-        n.hygiene = max(0, n.hygiene - int(4 * needs_multiplier))
+        n.hygiene = max(0, n.hygiene - round(4 * needs_multiplier))
     else:
-        n.hygiene = max(0, n.hygiene - int(8 * needs_multiplier))
+        n.hygiene = max(0, n.hygiene - round(8 * needs_multiplier))
         n.mood = max(0, n.mood - 2)
         _log(state, "utility.no_water")
 

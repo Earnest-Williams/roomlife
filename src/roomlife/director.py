@@ -209,6 +209,14 @@ def seed_daily_goals(
 
         chosen_goals.append(goal)
 
+        # Update cooldown flag if action has cooldown_days
+        dynamic = chosen_spec.dynamic or {}
+        director_config = dynamic.get("director", {})
+        cooldown_days = director_config.get("cooldown_days", 0)
+        if cooldown_days > 0:
+            cooldown_key = f"director.cooldown.{chosen_action_id}"
+            state.player.flags[cooldown_key] = state.world.day
+
     # Store goals in flags
     state.player.flags["goals.today"] = chosen_goals
 
