@@ -536,3 +536,460 @@ actions:
           skills_xp:
             ergonomics: 1.4
             logic: 0.8
+
+  - id: work
+    display_name: "Work"
+    description: "Work your current job. Pay and skills depend on the job."
+    category: work
+    time_minutes: 240
+    requires:
+      items:
+        any_provides: ["workspace"]
+    modifiers:
+      primary_skill: technical_literacy
+      secondary_skills: {}
+      traits:
+        confidence: 0.20
+        discipline: 0.15
+        fitness: 0.10
+      item_provides_weights:
+        workspace: 1.0
+    consumes:
+      item_durability:
+        provides: "workspace"
+        amount: 3
+    outcomes:
+      1:
+        events: [{ id: "action.work", params: {} }]
+        deltas:
+          needs:
+            mood: -2
+      2:
+        events: [{ id: "action.work", params: { quality: "good" } }]
+        deltas:
+          needs:
+            mood: -1
+      3:
+        events: [{ id: "action.work", params: { quality: "great" } }]
+        deltas:
+          needs:
+            mood: 0
+
+  - id: study
+    display_name: "Study"
+    description: "Study to improve focus skill. Better desk reduces fatigue."
+    category: work
+    time_minutes: 90
+    requires:
+      items:
+        any_provides: ["workspace"]
+    modifiers:
+      primary_skill: focus
+      secondary_skills:
+        ergonomics: 0.20
+      traits:
+        discipline: 0.10
+      item_provides_weights:
+        workspace: 1.0
+    consumes:
+      item_durability:
+        provides: "workspace"
+        amount: 2
+    outcomes:
+      1:
+        events: [{ id: "action.study", params: {} }]
+        deltas:
+          needs:
+            fatigue: 10
+            mood: 1
+          skills_xp:
+            focus: 3.0
+      2:
+        events: [{ id: "action.study", params: { quality: "good" } }]
+        deltas:
+          needs:
+            fatigue: 8
+            mood: 2
+          skills_xp:
+            focus: 3.5
+      3:
+        events: [{ id: "action.study", params: { quality: "great" } }]
+        deltas:
+          needs:
+            fatigue: 6
+            mood: 3
+          skills_xp:
+            focus: 4.0
+
+  - id: sleep
+    display_name: "Sleep"
+    description: "Rest to recover fatigue. Better bed improves recovery."
+    category: survival
+    time_minutes: 480
+    requires:
+      items:
+        any_provides: ["bed"]
+    modifiers:
+      primary_skill: introspection
+      secondary_skills: {}
+      traits:
+        fitness: 0.20
+      item_provides_weights:
+        bed: 1.0
+    consumes:
+      item_durability:
+        provides: "bed"
+        amount: 2
+    outcomes:
+      1:
+        events: [{ id: "action.sleep", params: {} }]
+        deltas:
+          needs:
+            fatigue: -35
+            mood: 3
+      2:
+        events: [{ id: "action.sleep", params: { quality: "good" } }]
+        deltas:
+          needs:
+            fatigue: -42
+            mood: 4
+            stress: -2
+      3:
+        events: [{ id: "action.sleep", params: { quality: "great" } }]
+        deltas:
+          needs:
+            fatigue: -50
+            mood: 5
+            stress: -4
+
+  - id: eat_charity_rice
+    display_name: "Eat charity rice"
+    description: "Eat free rice to reduce hunger. Not very satisfying."
+    category: survival
+    time_minutes: 20
+    requires: {}
+    modifiers:
+      primary_skill: nutrition
+      secondary_skills: {}
+    outcomes:
+      1:
+        events: [{ id: "food.eat", params: { meal_id: "charity_rice" } }]
+        deltas:
+          needs:
+            hunger: -25
+            mood: -1
+          skills_xp:
+            nutrition: 0.2
+      2:
+        events: [{ id: "food.eat", params: { meal_id: "charity_rice", quality: "good" } }]
+        deltas:
+          needs:
+            hunger: -30
+            mood: 0
+          skills_xp:
+            nutrition: 0.3
+      3:
+        events: [{ id: "food.eat", params: { meal_id: "charity_rice", quality: "great" } }]
+        deltas:
+          needs:
+            hunger: -35
+            mood: 1
+          skills_xp:
+            nutrition: 0.4
+
+  - id: pay_utilities
+    display_name: "Pay utilities"
+    description: "Pay utilities bill to keep services active. Better resource management reduces cost."
+    category: maintenance
+    time_minutes: 15
+    requires:
+      money_pence: 2000
+    modifiers:
+      primary_skill: resource_management
+      secondary_skills: {}
+      traits:
+        frugality: 0.15
+    consumes:
+      money_pence: 2000
+    outcomes:
+      1:
+        events: [{ id: "bills.paid", params: {} }]
+        deltas:
+          skills_xp:
+            resource_management: 1.0
+          flags:
+            utilities_paid: true
+      2:
+        events: [{ id: "bills.paid", params: { quality: "good" } }]
+        deltas:
+          needs:
+            stress: -1
+          skills_xp:
+            resource_management: 1.2
+          flags:
+            utilities_paid: true
+      3:
+        events: [{ id: "bills.paid", params: { quality: "great" } }]
+        deltas:
+          needs:
+            stress: -2
+            mood: 1
+          skills_xp:
+            resource_management: 1.5
+          flags:
+            utilities_paid: true
+
+  - id: skip_utilities
+    display_name: "Skip utilities"
+    description: "Skip paying utilities. Services will be cut off."
+    category: maintenance
+    time_minutes: 1
+    requires: {}
+    outcomes:
+      1:
+        events: [{ id: "bills.skipped", params: {} }]
+        deltas:
+          flags:
+            utilities_paid: false
+
+  - id: exercise
+    display_name: "Exercise"
+    description: "Exercise to improve mood and reduce stress. Fitness reduces fatigue cost."
+    category: health
+    time_minutes: 60
+    requires: {}
+    modifiers:
+      primary_skill: reflexivity
+      secondary_skills: {}
+      traits:
+        fitness: 0.25
+    outcomes:
+      1:
+        events: [{ id: "action.exercise", params: {} }]
+        deltas:
+          needs:
+            fatigue: 20
+            hunger: 5
+            mood: 10
+            stress: -5
+          skills_xp:
+            reflexivity: 2.5
+      2:
+        events: [{ id: "action.exercise", params: { quality: "good" } }]
+        deltas:
+          needs:
+            fatigue: 16
+            hunger: 5
+            mood: 12
+            stress: -6
+          skills_xp:
+            reflexivity: 2.8
+      3:
+        events: [{ id: "action.exercise", params: { quality: "great" } }]
+        deltas:
+          needs:
+            fatigue: 12
+            hunger: 5
+            mood: 15
+            stress: -8
+          skills_xp:
+            reflexivity: 3.2
+
+  - id: rest
+    display_name: "Rest and recover"
+    description: "Rest to recover from illness and injury. Stoicism helps with stress."
+    category: health
+    time_minutes: 120
+    requires: {}
+    modifiers:
+      primary_skill: introspection
+      secondary_skills: {}
+      traits:
+        stoicism: 0.20
+    outcomes:
+      1:
+        events: [{ id: "action.rest", params: {} }]
+        deltas:
+          needs:
+            illness: -10
+            injury: -5
+            fatigue: -10
+            stress: -5
+            mood: 3
+          skills_xp:
+            introspection: 0.5
+      2:
+        events: [{ id: "action.rest", params: { quality: "good" } }]
+        deltas:
+          needs:
+            illness: -12
+            injury: -6
+            fatigue: -12
+            stress: -7
+            mood: 4
+          skills_xp:
+            introspection: 0.7
+      3:
+        events: [{ id: "action.rest", params: { quality: "great" } }]
+        deltas:
+          needs:
+            illness: -15
+            injury: -8
+            fatigue: -15
+            stress: -10
+            mood: 5
+          skills_xp:
+            introspection: 1.0
+
+  - id: visit_doctor
+    display_name: "Visit doctor"
+    description: "Visit the doctor for professional medical treatment."
+    category: health
+    time_minutes: 90
+    requires:
+      money_pence: 5000
+    consumes:
+      money_pence: 5000
+    outcomes:
+      1:
+        events: [{ id: "action.visit_doctor", params: {} }]
+        deltas:
+          needs:
+            illness: -40
+            injury: -20
+            fatigue: 5
+            mood: 5
+      2:
+        events: [{ id: "action.visit_doctor", params: { quality: "good" } }]
+        deltas:
+          needs:
+            illness: -45
+            injury: -22
+            fatigue: 4
+            mood: 6
+      3:
+        events: [{ id: "action.visit_doctor", params: { quality: "great" } }]
+        deltas:
+          needs:
+            illness: -50
+            injury: -25
+            fatigue: 3
+            mood: 7
+
+  - id: purchase_item
+    display_name: "Purchase item"
+    description: "Buy an item from the shop."
+    category: other
+    time_minutes: 30
+    parameters:
+      - name: item_id
+        type: string
+        required: true
+    requires:
+      skills_min:
+        resource_management: 0
+    modifiers:
+      primary_skill: resource_management
+      secondary_skills: {}
+    outcomes:
+      1:
+        events: [{ id: "shopping.purchase", params: {} }]
+        deltas:
+          skills_xp:
+            resource_management: 0.5
+      2:
+        events: [{ id: "shopping.purchase", params: { quality: "good" } }]
+        deltas:
+          skills_xp:
+            resource_management: 0.6
+      3:
+        events: [{ id: "shopping.purchase", params: { quality: "great" } }]
+        deltas:
+          skills_xp:
+            resource_management: 0.7
+
+  - id: sell_item
+    display_name: "Sell item"
+    description: "Sell an item you own."
+    category: other
+    time_minutes: 20
+    parameters:
+      - name: item_id
+        type: string
+        required: true
+    requires:
+      skills_min:
+        resource_management: 0
+    modifiers:
+      primary_skill: resource_management
+      secondary_skills: {}
+      traits:
+        frugality: 0.10
+    outcomes:
+      1:
+        events: [{ id: "shopping.sell", params: {} }]
+        deltas:
+          skills_xp:
+            resource_management: 0.3
+      2:
+        events: [{ id: "shopping.sell", params: { quality: "good" } }]
+        deltas:
+          skills_xp:
+            resource_management: 0.4
+      3:
+        events: [{ id: "shopping.sell", params: { quality: "great" } }]
+        deltas:
+          skills_xp:
+            resource_management: 0.5
+
+  - id: discard_item
+    display_name: "Discard item"
+    description: "Throw away an item you no longer need."
+    category: other
+    time_minutes: 5
+    parameters:
+      - name: item_id
+        type: string
+        required: true
+    outcomes:
+      1:
+        events: [{ id: "shopping.discard", params: {} }]
+
+  - id: apply_job
+    display_name: "Apply for job"
+    description: "Apply for a new job."
+    category: work
+    time_minutes: 60
+    parameters:
+      - name: job_id
+        type: string
+        required: true
+    requires:
+      skills_min:
+        presence: 0
+    modifiers:
+      primary_skill: presence
+      secondary_skills:
+        articulation: 0.30
+        persuasion: 0.20
+      traits:
+        confidence: 0.20
+    outcomes:
+      1:
+        events: [{ id: "job.application_accepted", params: {} }]
+        deltas:
+          skills_xp:
+            presence: 1.0
+            articulation: 0.5
+      2:
+        events: [{ id: "job.application_accepted", params: { quality: "good" } }]
+        deltas:
+          skills_xp:
+            presence: 1.2
+            articulation: 0.6
+      3:
+        events: [{ id: "job.application_accepted", params: { quality: "great" } }]
+        deltas:
+          skills_xp:
+            presence: 1.5
+            articulation: 0.8

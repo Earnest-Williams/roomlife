@@ -97,6 +97,17 @@ def _get_health_penalty(state: State) -> float:
     return 1.0
 
 
+def _track_habit(state: State, habit_name: str, amount: int) -> None:
+    """Track habit points for trait drift.
+
+    Args:
+        state: Game state
+        habit_name: Name of the habit to track
+        amount: Amount of habit points to add
+    """
+    state.player.habit_tracker[habit_name] = state.player.habit_tracker.get(habit_name, 0) + amount
+
+
 def _apply_skill_xp(state: State, skill_name: str, xp_gain: float, current_tick: int) -> float:
     """Apply skill XP gain with trait modifiers.
 
@@ -667,6 +678,290 @@ def execute_action(
             _log(state, "action.failed", action_id=spec.id, reason=msg)
             return
         _log(state, "action.drop_item", instance_id=item.instance_id, item_id=item.item_id)
+        return
+
+    if spec.id == "work":
+        from .constants import JOBS
+        # Get current job details
+        current_job = state.player.current_job
+        job_data = JOBS.get(current_job, JOBS["recycling_collector"])
+
+        # Calculate tier for work quality
+        tier = compute_tier(state, spec, item_meta, rng_seed=rng_seed)
+
+        # Apply resource consumption
+        apply_consumes(state, spec, item_meta)
+
+        # Calculate earnings with modifiers
+        base_earnings = job_data["base_pay"]
+        confidence_mod = 1.0 + (state.player.traits.confidence / 100.0) * 0.2
+        tier_mod = 1.0 + (tier * 0.05)  # 0%, 5%, 10%, 15% bonus for tiers 0-3
+        earnings = int(base_earnings * confidence_mod * tier_mod)
+
+        state.player.money_pence += earnings
+
+        # Calculate and apply fatigue
+        fatigue_cost = job_data["fatigue_cost"]
+        discipline_mod = 1.0 - (state.player.traits.discipline / 100.0) * 0.2
+        fitness_mod = 1.0 - (state.player.traits.fitness / 100.0) * 0.15
+        health_penalty = _get_health_penalty(state)
+        fatigue_cost = int(fatigue_cost * discipline_mod * fitness_mod * (2.0 - health_penalty) * (1.0 - tier * 0.05))
+        state.player.needs.fatigue = min(100, state.player.needs.fatigue + fatigue_cost)
+
+        # Apply base outcome (mood changes, etc.)
+        apply_outcome(state, spec, tier, item_meta, current_tick, emit_events=False)
+
+        # Apply job-specific skill gains
+        skill_gains_log = {}
+        for skill_name, xp_gain in job_data.get("skill_gains", {}).items():
+            if skill_name == "fitness":
+                # Fitness is a trait, not a skill
+                _track_habit(state, "fitness", int(xp_gain * 10))
+            else:
+                gain = _apply_skill_xp(state, skill_name, xp_gain * (1.0 + tier * 0.2), current_tick)
+                skill_gains_log[skill_name] = round(gain, 2)
+
+        # Track habits
+        _track_habit(state, "discipline", 10)
+        _track_habit(state, "confidence", 8)
+
+        # Log the work action
+        _log(state, "action.work",
+             earned_pence=earnings,
+             job=job_data["name"],
+             skill_gains=skill_gains_log,
+             tier=tier)
+        return
+
+    if spec.id == "pay_utilities":
+        # Calculate cost with discounts
+        base_cost = 2000
+        resource_mgmt_discount = state.player.skills_detailed["resource_management"].value * 10
+        frugality_discount = state.player.traits.frugality / 100.0 * 200
+
+        # Check for utilities_discount_pence flag from negotiate_utilities
+        discount_flag = getattr(state.player, "flags", {}).get("utilities_discount_pence", 0)
+
+        cost = max(100, int(base_cost - resource_mgmt_discount - frugality_discount - discount_flag))
+
+        if state.player.money_pence < cost:
+            _log(state, "action.failed", action_id=spec.id, reason="insufficient_funds")
+            return
+
+        state.player.money_pence -= cost
+        state.player.utilities_paid = True
+
+        # Clear the discount flag after use
+        if hasattr(state.player, "flags") and "utilities_discount_pence" in state.player.flags:
+            del state.player.flags["utilities_discount_pence"]
+
+        # Track frugality habit
+        _track_habit(state, "frugality", 5)
+
+        tier = compute_tier(state, spec, item_meta, rng_seed=rng_seed)
+        apply_outcome(state, spec, tier, item_meta, current_tick, emit_events=False)
+
+        _log(state, "bills.paid", cost_pence=cost, tier=tier)
+        return
+
+    if spec.id == "skip_utilities":
+        state.player.utilities_paid = False
+        _log(state, "bills.skipped")
+        return
+
+    if spec.id == "shower":
+        # Standard tier computation and outcome application
+        tier = compute_tier(state, spec, item_meta, rng_seed=rng_seed)
+        apply_consumes(state, spec, item_meta)
+        apply_outcome(state, spec, tier, item_meta, current_tick)
+
+        # Apply warmth penalty if no heat (legacy behavior)
+        if not state.utilities.heat:
+            state.player.needs.warmth = max(0, state.player.needs.warmth - 10)
+        return
+
+    if spec.id == "clean_room":
+        # Standard tier computation and outcome application
+        tier = compute_tier(state, spec, item_meta, rng_seed=rng_seed)
+        apply_consumes(state, spec, item_meta)
+        apply_outcome(state, spec, tier, item_meta, current_tick)
+
+        # Track discipline habit (legacy behavior)
+        _track_habit(state, "discipline", 10)
+        return
+
+    if spec.id == "purchase_item":
+        item_id = action_call.params.get("item_id")
+        if not item_id or not isinstance(item_id, str):
+            _log(state, "action.failed", action_id=spec.id, reason="invalid_item_id")
+            return
+
+        # Get item metadata
+        metadata = item_meta.get(item_id)
+        if not metadata:
+            _log(state, "action.failed", action_id=spec.id, reason="item_not_for_sale")
+            return
+
+        price = metadata.price
+        if price <= 0:
+            _log(state, "action.failed", action_id=spec.id, reason="item_not_for_sale")
+            return
+
+        # Check if player has enough money
+        if state.player.money_pence < price:
+            _log(state, "action.failed", action_id=spec.id, reason="insufficient_funds",
+                 required_pence=price, current_pence=state.player.money_pence)
+            return
+
+        # Deduct money
+        state.player.money_pence -= price
+
+        # Create new item
+        new_item = Item(
+            instance_id=generate_instance_id(),
+            item_id=item_id,
+            placed_in=state.world.location,
+            container=None,
+            slot="floor",
+            quality=metadata.quality,
+            condition="pristine",
+            condition_value=100,
+            bulk=metadata.bulk,
+        )
+        state.items.append(new_item)
+
+        # Track confidence habit
+        _track_habit(state, "confidence", 3)
+
+        tier = compute_tier(state, spec, item_meta, rng_seed=rng_seed)
+        apply_outcome(state, spec, tier, item_meta, current_tick, emit_events=False)
+
+        _log(state, "shopping.purchase", item_id=item_id, item_name=metadata.name,
+             cost_pence=price, quality=metadata.quality, tier=tier)
+        return
+
+    if spec.id == "sell_item":
+        item_id = action_call.params.get("item_id")
+        if not item_id or not isinstance(item_id, str):
+            _log(state, "action.failed", action_id=spec.id, reason="invalid_item_id")
+            return
+
+        # Find the item at current location
+        item_to_sell = None
+        for item in state.items:
+            if item.item_id == item_id and item.placed_in == state.world.location:
+                item_to_sell = item
+                break
+
+        if item_to_sell is None:
+            _log(state, "action.failed", action_id=spec.id, reason="item_not_found")
+            return
+
+        # Get item metadata
+        metadata = item_meta.get(item_id)
+        if not metadata or metadata.price <= 0:
+            _log(state, "action.failed", action_id=spec.id, reason="item_not_sellable")
+            return
+
+        # Calculate sell price: 40% of base price, adjusted by condition
+        condition_multiplier = item_to_sell.condition_value / 100.0
+        sell_price = int(metadata.price * 0.4 * condition_multiplier)
+        sell_price = max(100, sell_price)  # Minimum sell price
+
+        # Add money
+        state.player.money_pence += sell_price
+
+        # Remove item
+        state.items.remove(item_to_sell)
+
+        # Track frugality habit
+        _track_habit(state, "frugality", 5)
+
+        tier = compute_tier(state, spec, item_meta, rng_seed=rng_seed)
+        apply_outcome(state, spec, tier, item_meta, current_tick, emit_events=False)
+
+        _log(state, "shopping.sell", item_id=item_id, item_name=metadata.name,
+             earned_pence=sell_price, condition=item_to_sell.condition, tier=tier)
+        return
+
+    if spec.id == "discard_item":
+        item_id = action_call.params.get("item_id")
+        if not item_id or not isinstance(item_id, str):
+            _log(state, "action.failed", action_id=spec.id, reason="invalid_item_id")
+            return
+
+        # Find the item at current location
+        item_to_discard = None
+        for item in state.items:
+            if item.item_id == item_id and item.placed_in == state.world.location:
+                item_to_discard = item
+                break
+
+        if item_to_discard is None:
+            _log(state, "action.failed", action_id=spec.id, reason="item_not_found")
+            return
+
+        # Get item metadata for display name
+        metadata = item_meta.get(item_id)
+        item_name = metadata.name if metadata else item_id
+
+        # Remove item
+        state.items.remove(item_to_discard)
+
+        # Track minimalism habit (if it exists)
+        if hasattr(state.player.habit_tracker, "__setitem__"):
+            _track_habit(state, "minimalism", 2)
+
+        _log(state, "shopping.discard", item_id=item_id, item_name=item_name,
+             condition=item_to_discard.condition)
+        return
+
+    if spec.id == "apply_job":
+        from .constants import JOBS
+        from .engine import _check_job_requirements
+
+        job_id = action_call.params.get("job_id")
+        if not job_id or not isinstance(job_id, str):
+            _log(state, "action.failed", action_id=spec.id, reason="invalid_job_id")
+            return
+
+        if job_id not in JOBS:
+            _log(state, "action.failed", action_id=spec.id, reason="job_not_found")
+            return
+
+        job_data = JOBS[job_id]
+
+        # Check if already have this job
+        if state.player.current_job == job_id:
+            _log(state, "action.failed", action_id=spec.id, reason="already_employed")
+            return
+
+        # Check requirements
+        meets_requirements, reason = _check_job_requirements(state, job_id)
+
+        if not meets_requirements:
+            _log(state, "job.application_rejected",
+                 job_id=job_id,
+                 job_name=job_data["name"],
+                 reason=reason)
+            return
+
+        # Application successful
+        old_job = state.player.current_job
+        state.player.current_job = job_id
+
+        tier = compute_tier(state, spec, item_meta, rng_seed=rng_seed)
+        apply_outcome(state, spec, tier, item_meta, current_tick, emit_events=False)
+
+        # Track confidence habit
+        _track_habit(state, "confidence", 10)
+
+        old_job_name = JOBS[old_job]["name"] if old_job in JOBS else "Unemployed"
+        _log(state, "job.application_accepted",
+             job_id=job_id,
+             job_name=job_data["name"],
+             old_job=old_job_name,
+             tier=tier)
         return
 
     tier = compute_tier(state, spec, item_meta, rng_seed=rng_seed)
