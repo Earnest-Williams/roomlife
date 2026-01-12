@@ -173,7 +173,7 @@ def test_actions_with_required_provides_have_tier_floor_zero():
             if 0 not in outcomes:
                 errors.append(
                     f"{action_id}: consumes durability from required capability '{consumed_cap}' "
-                    f"but no tier 0 outcome defined"
+                    "but no tier 0 outcome defined"
                 )
 
     assert not errors, "Actions with required capability consumes need tier_floor=0:\n" + "\n".join(errors)
