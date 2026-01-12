@@ -47,6 +47,10 @@ class ActionCatalog:
         cards.extend(self._list_repair_actions(state))
         cards.extend(self._list_pickup_actions(state))
         cards.extend(self._list_drop_actions(state))
+        cards.extend(self._list_purchase_actions(state))
+        cards.extend(self._list_sell_actions(state))
+        cards.extend(self._list_discard_actions(state))
+        cards.extend(self._list_apply_job_actions(state))
 
         return cards
 
@@ -183,3 +187,175 @@ class ActionCatalog:
         if spec is None:
             return False, "Unknown action", ["unknown action"]
         return validate_action_spec(state, spec, self.item_meta, call.params)
+
+    def _list_purchase_actions(self, state: State) -> List[ActionCard]:
+        from .engine import _get_shop_catalog, _get_item_metadata
+
+        cards: List[ActionCard] = []
+        spec = self.specs.get("purchase_item")
+        if spec is None:
+            return cards
+
+        # Get purchasable items from shop catalog
+        catalog = _get_shop_catalog()
+        for category in catalog.get("categories", []):
+            for item_id in category.get("items", []):
+                metadata = _get_item_metadata(item_id)
+                price = metadata.get("price", 0)
+
+                if price <= 0:
+                    continue
+
+                call = ActionCall("purchase_item", {"item_id": item_id})
+                ok, reason, missing = self._validate_call(state, call)
+
+                # Check if player has enough money
+                if state.player.money_pence < price:
+                    ok = False
+                    missing.append(f"need {price}p (have {state.player.money_pence}p)")
+
+                item_name = metadata.get("name", item_id)
+                description = metadata.get("description", "")
+
+                cards.append(
+                    ActionCard(
+                        call=call,
+                        display_name=f"Purchase {item_name}",
+                        description=f"{description} (Cost: {price}p)",
+                        available=ok,
+                        why_locked=None if ok else reason,
+                        missing_requirements=missing,
+                    )
+                )
+
+        return cards
+
+    def _list_sell_actions(self, state: State) -> List[ActionCard]:
+        from .engine import _get_item_metadata
+
+        cards: List[ActionCard] = []
+        spec = self.specs.get("sell_item")
+        if spec is None:
+            return cards
+
+        # List items at current location that can be sold
+        items_here = state.get_items_at(state.world.location)
+        seen_item_ids = set()
+
+        # NOTE: Only one action per item_id is shown, even if multiple instances exist.
+        # The first instance encountered is used for price/condition display, and will be
+        # the one sold when the action is executed. This matches legacy behavior but means
+        # players cannot choose which instance to sell if they have duplicates.
+        # Future enhancement: allow instance-level selection for items with same item_id.
+        for item in items_here:
+            # Only list each item_id once
+            if item.item_id in seen_item_ids:
+                continue
+
+            metadata = _get_item_metadata(item.item_id)
+            base_price = metadata.get("price", 0)
+
+            if base_price <= 0:
+                continue
+
+            seen_item_ids.add(item.item_id)
+
+            # Calculate sell price
+            condition_multiplier = item.condition_value / 100.0
+            sell_price = int(base_price * 0.4 * condition_multiplier)
+            sell_price = max(100, sell_price)
+
+            call = ActionCall("sell_item", {"item_id": item.item_id})
+            ok, reason, missing = self._validate_call(state, call)
+
+            item_name = metadata.get("name", item.item_id)
+
+            cards.append(
+                ActionCard(
+                    call=call,
+                    display_name=f"Sell {item_name}",
+                    description=f"Sell for ~{sell_price}p (condition: {item.condition})",
+                    available=ok,
+                    why_locked=None if ok else reason,
+                    missing_requirements=missing,
+                )
+            )
+
+        return cards
+
+    def _list_discard_actions(self, state: State) -> List[ActionCard]:
+        from .engine import _get_item_metadata
+
+        cards: List[ActionCard] = []
+        spec = self.specs.get("discard_item")
+        if spec is None:
+            return cards
+
+        # List items at current location
+        items_here = state.get_items_at(state.world.location)
+        seen_item_ids = set()
+
+        # NOTE: Only one action per item_id is shown, even if multiple instances exist.
+        # The first instance encountered will be discarded. This matches legacy behavior.
+        # Future enhancement: allow instance-level selection for items with same item_id.
+        for item in items_here:
+            # Only list each item_id once
+            if item.item_id in seen_item_ids:
+                continue
+
+            seen_item_ids.add(item.item_id)
+
+            metadata = _get_item_metadata(item.item_id)
+            item_name = metadata.get("name", item.item_id.replace("_", " ").title())
+
+            call = ActionCall("discard_item", {"item_id": item.item_id})
+            ok, reason, missing = self._validate_call(state, call)
+
+            cards.append(
+                ActionCard(
+                    call=call,
+                    display_name=f"Discard {item_name}",
+                    description="Throw away this item permanently",
+                    available=ok,
+                    why_locked=None if ok else reason,
+                    missing_requirements=missing,
+                )
+            )
+
+        return cards
+
+    def _list_apply_job_actions(self, state: State) -> List[ActionCard]:
+        from .constants import JOBS
+
+        cards: List[ActionCard] = []
+        spec = self.specs.get("apply_job")
+        if spec is None:
+            return cards
+
+        for job_id, job_data in JOBS.items():
+            # Don't show current job
+            if state.player.current_job == job_id:
+                continue
+
+            call = ActionCall("apply_job", {"job_id": job_id})
+            ok, reason, missing = self._validate_call(state, call)
+
+            # Check job requirements
+            from .engine import _check_job_requirements
+            meets_req, req_reason = _check_job_requirements(state, job_id)
+            if not meets_req:
+                ok = False
+                missing.append(req_reason)
+
+            cards.append(
+                ActionCard(
+                    call=call,
+                    display_name=f"Apply for {job_data['name']}",
+                    description=f"{job_data['description']} (Pay: {job_data['base_pay']}p)",
+                    available=ok,
+                    why_locked=None if ok else reason,
+                    missing_requirements=missing,
+                )
+            )
+
+        return cards

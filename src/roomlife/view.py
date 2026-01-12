@@ -1,9 +1,36 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Dict
 
+from .action_call import ActionCall
+from .catalog import ActionCatalog
 from .constants import SKILL_NAMES
+from .content_specs import load_actions, load_item_meta
 from .models import State
+
+# Global cache for specs (loaded once)
+_ACTION_SPECS = None
+_ITEM_META = None
+
+
+def _ensure_specs_loaded():
+    """Lazy load action specs and item metadata."""
+    global _ACTION_SPECS, _ITEM_META
+    data_dir = Path(__file__).parent.parent.parent / "data"
+
+    if _ACTION_SPECS is None:
+        actions_path = data_dir / "actions.yaml"
+        if actions_path.exists():
+            _ACTION_SPECS = load_actions(actions_path)
+        else:
+            _ACTION_SPECS = {}
+    if _ITEM_META is None:
+        items_path = data_dir / "items_meta.yaml"
+        if items_path.exists():
+            _ITEM_META = load_item_meta(items_path)
+        else:
+            _ITEM_META = {}
 
 
 def build_view_model(state: State) -> Dict:
@@ -23,31 +50,29 @@ def build_view_model(state: State) -> Dict:
                 "value": round(skill.value, 2),
             })
 
-    # Build actions list with movement options
-    actions_hint = [
-        {"id": "work", "label": "Work a shift"},
-        {"id": "study", "label": "Study"},
-        {"id": "sleep", "label": "Sleep"},
-        {"id": "eat_charity_rice", "label": "Eat charity rice"},
-        {"id": "pay_utilities", "label": "Pay utilities"},
-        {"id": "skip_utilities", "label": "Skip utilities"},
-        {"id": "shower", "label": "Shower"},
-        {"id": "cook_basic_meal", "label": "Cook basic meal"},
-        {"id": "clean_room", "label": "Clean room"},
-        {"id": "exercise", "label": "Exercise"},
-        {"id": "rest", "label": "Rest and recover"},
-        {"id": "visit_doctor", "label": "Visit doctor"},
-    ]
+    # Build actions list from ActionCatalog
+    _ensure_specs_loaded()
+    catalog = ActionCatalog(_ACTION_SPECS, _ITEM_META)
+    action_cards = catalog.list_available(state)
 
-    # Add movement actions based on current location connections
-    if space and space.connections:
-        for connected_space_id in space.connections:
-            connected_space = state.spaces.get(connected_space_id)
-            if connected_space:
-                actions_hint.append({
-                    "id": f"move_{connected_space_id}",
-                    "label": f"Move to {connected_space.name}"
-                })
+    # Convert ActionCards to hint format
+    actions_hint = []
+    for card in action_cards:
+        # Convert ActionCall to legacy format for backwards compatibility
+        if card.call.action_id == "move" and "target_space" in card.call.params:
+            # Legacy format for move actions
+            action_id = f"move_{card.call.params['target_space']}"
+        elif card.call.params:
+            # For parameterized actions, we need to serialize them somehow
+            # For now, skip showing them as simple hints (they'll be in the full action list)
+            continue
+        else:
+            action_id = card.call.action_id
+
+        actions_hint.append({
+            "id": action_id,
+            "label": card.display_name,
+        })
 
     return {
         "time": {"day": state.world.day, "slice": state.world.slice},
