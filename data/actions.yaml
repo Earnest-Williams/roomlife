@@ -628,17 +628,17 @@ actions:
     time_minutes: 480
     requires:
       items:
-        any_provides: ["bed"]
+        any_provides: ["sleeping_surface"]
     modifiers:
       primary_skill: introspection
       secondary_skills: {}
       traits:
         fitness: 0.20
       item_provides_weights:
-        bed: 1.0
+        sleeping_surface: 1.0
     consumes:
       item_durability:
-        provides: "bed"
+        provides: "sleeping_surface"
         amount: 2
     outcomes:
       1:

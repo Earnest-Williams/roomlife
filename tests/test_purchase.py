@@ -116,25 +116,27 @@ def test_quality_correctly_applied_to_purchased_items():
 def test_skill_gains_on_purchase():
     """Test that purchasing items grants resource_management skill XP."""
     state = new_game()
-    
+
     # Give player enough money
     state.player.money_pence = 10000
-    
+
     # Record initial skill value
     initial_skill = state.player.skills_detailed["resource_management"].value
-    
+
     # Make a purchase
     apply_action(state, "purchase_bed_standard", rng_seed=123)
-    
+
     # Skill should have increased
     final_skill = state.player.skills_detailed["resource_management"].value
     assert final_skill > initial_skill
-    
-    # Check that skill gain was logged in the purchase event
-    purchase_events = [e for e in state.event_log if e["event_id"] == "shopping.purchase"]
-    assert len(purchase_events) == 1
-    assert "skill_gain" in purchase_events[0]["params"]
-    assert purchase_events[0]["params"]["skill_gain"] > 0
+
+    # Check that skill gain was logged as a separate event (new YAML system)
+    skill_events = [e for e in state.event_log if e["event_id"] == "skill.gain"]
+    assert len(skill_events) > 0
+    # Find the resource_management skill gain
+    rm_gains = [e for e in skill_events if e["params"].get("skill") == "resource_management"]
+    assert len(rm_gains) > 0
+    assert rm_gains[-1]["params"]["xp"] > 0
 
 
 def test_habit_tracking_on_purchase():

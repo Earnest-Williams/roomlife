@@ -200,18 +200,18 @@ def test_starter_items_can_be_sold():
 
 def test_sell_action_grants_resource_management_skill():
     """Test that selling items grants resource_management skill XP.
-    
+
     Note: The skill gain from a single sell action (0.3 base) may be offset by
     skill rust when time advances, so we start with an existing skill value to
     verify that the gain is applied before rust.
     """
     state = new_game()
-    
+
     # Give player some existing skill so we can see the gain before rust
     # Start with enough skill that rust won't reduce it to zero
     state.player.skills_detailed["resource_management"].value = 5.0
     state.player.skills_detailed["resource_management"].last_tick = 4  # Current tick
-    
+
     # Add an item to sell
     state.items.append(Item(
         instance_id=generate_instance_id(),
@@ -223,21 +223,21 @@ def test_sell_action_grants_resource_management_skill():
         condition="used",
         condition_value=80
     ))
-    
+
     # Get initial skill value
     initial_skill_value = state.player.skills_detailed["resource_management"].value
-    
+
     # Sell the item
     apply_action(state, "sell_bed_standard", rng_seed=123)
-    
-    # Verify through event log that skill gain was recorded
-    # The actual skill gain is calculated during the action
-    sell_events = [e for e in state.event_log if e["event_id"] == "shopping.sell"]
-    assert len(sell_events) == 1
-    assert "skill_gain" in sell_events[0]["params"]
-    skill_gain_logged = sell_events[0]["params"]["skill_gain"]
+
+    # Verify through event log that skill gain was recorded (new YAML system)
+    skill_events = [e for e in state.event_log if e["event_id"] == "skill.gain"]
+    # Find resource_management skill gains
+    rm_gains = [e for e in skill_events if e["params"].get("skill") == "resource_management"]
+    assert len(rm_gains) > 0
+    skill_gain_logged = rm_gains[-1]["params"]["xp"]
     assert skill_gain_logged > 0
-    
+
     # The final skill value will be: initial + gain - rust
     # We know the gain from the event log, and can calculate expected final value
     # Rust is skill.rust_rate * ticks_passed * (1.0 - discipline/100 * 0.3)
@@ -245,7 +245,7 @@ def test_sell_action_grants_resource_management_skill():
     rust_per_tick = skill.rust_rate * (1.0 - state.player.traits.discipline / 100.0 * 0.3)
     # Time advanced by 1 tick during the action
     expected_final = initial_skill_value + skill_gain_logged - rust_per_tick
-    
+
     final_skill_value = skill.value
     # Allow for small floating point differences (within 0.01)
     assert abs(final_skill_value - expected_final) < 0.01, \

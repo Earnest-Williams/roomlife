@@ -817,9 +817,10 @@ def execute_action(
         # Deduct money
         state.player.money_pence -= price
 
-        # Create new item
+        # Create new item with deterministic instance ID
+        rng = random.Random(rng_seed + state.world.day * 97)
         new_item = Item(
-            instance_id=generate_instance_id(),
+            instance_id=generate_instance_id(rng),
             item_id=item_id,
             placed_in=state.world.location,
             container=None,

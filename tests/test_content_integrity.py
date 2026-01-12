@@ -117,7 +117,7 @@ def test_all_parameter_types_are_supported():
     """
     actions = _load_yaml(DATA_DIR / "actions.yaml").get("actions", [])
 
-    SUPPORTED_TYPES = {"space_id", "item_ref"}
+    SUPPORTED_TYPES = {"space_id", "item_ref", "string"}
 
     unsupported = []
     for action in actions:
