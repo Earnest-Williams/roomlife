@@ -340,6 +340,8 @@ actions:
     requires:
       location:
         any_space_tags: ["room"]
+      items:
+        any_provides: ["cleaning_kit"]
     modifiers:
       primary_skill: maintenance
       secondary_skills:
