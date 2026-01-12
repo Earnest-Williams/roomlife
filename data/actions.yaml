@@ -507,7 +507,7 @@ actions:
     modifiers:
       primary_skill: ergonomics
       secondary_skills:
-        logic: 0.30
+        analysis: 0.30
     outcomes:
       1:
         events: [{ id: "action.study_focused", params: { intensity: "normal" } }]
@@ -517,7 +517,7 @@ actions:
             mood: -1
           skills_xp:
             ergonomics: 1.0
-            logic: 0.6
+            analysis: 0.6
       2:
         events: [{ id: "action.study_focused", params: { intensity: "good" } }]
         deltas:
@@ -526,7 +526,7 @@ actions:
             mood: 0
           skills_xp:
             ergonomics: 1.2
-            logic: 0.7
+            analysis: 0.7
       3:
         events: [{ id: "action.study_focused", params: { intensity: "great" } }]
         deltas:
@@ -535,7 +535,7 @@ actions:
             mood: 1
           skills_xp:
             ergonomics: 1.4
-            logic: 0.8
+            analysis: 0.8
 
   - id: work
     display_name: "Work"
