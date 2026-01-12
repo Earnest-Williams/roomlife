@@ -12,6 +12,7 @@ from .models import (
     Aptitudes,
     Item,
     Needs,
+    NPC,
     Player,
     Skill,
     Space,
@@ -66,6 +67,7 @@ def load_state(path: Path) -> State:
     s.player = Player(
         money_pence=p["money_pence"],
         utilities_paid=p["utilities_paid"],
+        current_job=p.get("current_job", "recycling_collector"),
         carry_capacity=p.get("carry_capacity", 12),
         needs=Needs(**p["needs"]),
         skills=dict(p["skills"]),
@@ -74,6 +76,8 @@ def load_state(path: Path) -> State:
         traits=Traits(**p.get("traits", {})),
         skills_detailed=_load_skills_detailed(p),
         habit_tracker=dict(p.get("habit_tracker", {})),
+        flags=dict(p.get("flags", {})),
+        memory=list(p.get("memory", [])),
     )
     s.utilities = Utilities(**raw["utilities"])
     s.spaces = {k: Space(**v) for k, v in raw["spaces"].items()}
@@ -106,4 +110,17 @@ def load_state(path: Path) -> State:
         items.append(Item(**item_data))
     s.items = items
     s.event_log = list(raw["event_log"])
+    s.npcs = {}
+    for npc_id, npc_data in (raw.get("npcs") or {}).items():
+        s.npcs[npc_id] = NPC(
+            id=npc_data.get("id", npc_id),
+            display_name=npc_data.get("display_name", npc_id),
+            role=npc_data.get("role", "neighbor"),
+            skills_detailed=_load_skills_detailed(npc_data),
+            aptitudes=Aptitudes(**npc_data.get("aptitudes", {})),
+            traits=Traits(**npc_data.get("traits", {})),
+            relationships=dict(npc_data.get("relationships", {})),
+            memory=list(npc_data.get("memory", [])),
+            flags=dict(npc_data.get("flags", {})),
+        )
     return s

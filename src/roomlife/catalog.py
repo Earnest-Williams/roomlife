@@ -238,8 +238,8 @@ class ActionCatalog:
         if spec is None:
             return cards
 
-        # List items at current location that can be sold
-        items_here = state.get_items_at(state.world.location)
+        # List items in inventory that can be sold
+        items_here = [item for item in state.items if item.placed_in == "inventory"]
         seen_item_ids = set()
 
         # NOTE: Only one action per item_id is shown, even if multiple instances exist.
@@ -291,8 +291,8 @@ class ActionCatalog:
         if spec is None:
             return cards
 
-        # List items at current location
-        items_here = state.get_items_at(state.world.location)
+        # List items in inventory
+        items_here = [item for item in state.items if item.placed_in == "inventory"]
         seen_item_ids = set()
 
         # NOTE: Only one action per item_id is shown, even if multiple instances exist.
