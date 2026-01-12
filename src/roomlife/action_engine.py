@@ -742,7 +742,7 @@ def execute_action(
         # Check for utilities_discount_pence flag from negotiate_utilities
         discount_flag = getattr(state.player, "flags", {}).get("utilities_discount_pence", 0)
 
-        cost = max(100, int(base_cost - resource_mgmt_discount - frugality_discount - discount_flag))
+        cost = max(0, int(base_cost - resource_mgmt_discount - frugality_discount - discount_flag))
 
         if state.player.money_pence < cost:
             _log(state, "action.failed", action_id=spec.id, reason="insufficient_funds")
@@ -765,6 +765,8 @@ def execute_action(
         return
 
     if spec.id == "skip_utilities":
+        # This action is intentionally handled outside the standard compute_tier/apply_outcome
+        # flow: it has no YAML-defined tiered outcomes and simply flips a flag plus logging.
         state.player.utilities_paid = False
         _log(state, "bills.skipped")
         return
@@ -828,7 +830,7 @@ def execute_action(
             quality=quality,
             condition="pristine",
             condition_value=100,
-            bulk=1,  # Default bulk
+            bulk=metadata.get("bulk", 1),
         )
         state.items.append(new_item)
 
@@ -961,8 +963,8 @@ def execute_action(
         tier = compute_tier(state, spec, item_meta, rng_seed=rng_seed)
         apply_outcome(state, spec, tier, item_meta, current_tick, emit_events=False)
 
-        # Track confidence habit
-        _track_habit(state, "confidence", 10)
+        # Track confidence habit (restored to legacy value of 20 points)
+        _track_habit(state, "confidence", 20)
 
         old_job_name = JOBS[old_job]["name"] if old_job in JOBS else "Unemployed"
         _log(state, "job.application_accepted",

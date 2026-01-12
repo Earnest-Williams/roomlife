@@ -17,17 +17,15 @@ _ITEM_META = None
 def _ensure_specs_loaded():
     """Lazy load action specs and item metadata."""
     global _ACTION_SPECS, _ITEM_META
+    data_dir = Path(__file__).parent.parent.parent / "data"
+
     if _ACTION_SPECS is None:
-        # Load from data directory
-        data_dir = Path(__file__).parent.parent.parent / "data"
         actions_path = data_dir / "actions.yaml"
         if actions_path.exists():
             _ACTION_SPECS = load_actions(actions_path)
         else:
             _ACTION_SPECS = {}
     if _ITEM_META is None:
-        # Load from data directory
-        data_dir = Path(__file__).parent.parent.parent / "data"
         items_path = data_dir / "items_meta.yaml"
         if items_path.exists():
             _ITEM_META = load_item_meta(items_path)

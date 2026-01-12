@@ -313,10 +313,6 @@ def _gain_skill_xp(state: State, skill_name: str, gain: float, current_tick: int
     return actual_gain
 
 
-def _track_habit(state: State, habit_name: str, amount: int) -> None:
-    state.player.habit_tracker[habit_name] = state.player.habit_tracker.get(habit_name, 0) + amount
-
-
 def _apply_trait_drift(state: State) -> List[str]:
     """Apply trait changes based on habit accumulation (optimized loop-based approach)."""
     messages = []

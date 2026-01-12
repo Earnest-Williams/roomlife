@@ -717,8 +717,6 @@ actions:
         deltas:
           skills_xp:
             resource_management: 1.0
-          flags:
-            utilities_paid: true
       2:
         events: [{ id: "bills.paid", params: { quality: "good" } }]
         deltas:
@@ -726,8 +724,6 @@ actions:
             stress: -1
           skills_xp:
             resource_management: 1.2
-          flags:
-            utilities_paid: true
       3:
         events: [{ id: "bills.paid", params: { quality: "great" } }]
         deltas:
@@ -736,8 +732,6 @@ actions:
             mood: 1
           skills_xp:
             resource_management: 1.5
-          flags:
-            utilities_paid: true
 
   - id: skip_utilities
     display_name: "Skip utilities"
@@ -748,9 +742,7 @@ actions:
     outcomes:
       1:
         events: [{ id: "bills.skipped", params: {} }]
-        deltas:
-          flags:
-            utilities_paid: false
+        deltas: {}
 
   - id: exercise
     display_name: "Exercise"
@@ -879,7 +871,7 @@ actions:
   - id: purchase_item
     display_name: "Purchase item"
     description: "Buy an item from the shop."
-    category: other
+    category: shopping
     time_minutes: 30
     parameters:
       - name: item_id
@@ -911,7 +903,7 @@ actions:
   - id: sell_item
     display_name: "Sell item"
     description: "Sell an item you own."
-    category: other
+    category: shopping
     time_minutes: 20
     parameters:
       - name: item_id
@@ -945,7 +937,7 @@ actions:
   - id: discard_item
     display_name: "Discard item"
     description: "Throw away an item you no longer need."
-    category: other
+    category: shopping
     time_minutes: 5
     parameters:
       - name: item_id
