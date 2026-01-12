@@ -83,7 +83,7 @@ def validate_parameters(
     missing: List[str] = []
 
     # Supported parameter types
-    SUPPORTED_TYPES = {"space_id", "item_ref"}
+    SUPPORTED_TYPES = {"space_id", "item_ref", "string"}
 
     for p in spec.parameters or []:
         name = p["name"]
@@ -104,6 +104,10 @@ def validate_parameters(
                 continue
             constraints = p.get("constraints", {})
             missing.extend(_validate_item_constraints(state, params[name], constraints))
+        elif ptype == "string":
+            # String parameters just need to be present and be a string
+            if not isinstance(params[name], str):
+                missing.append(f"{name} must be a string")
         else:
             # Fail hard on unknown types to prevent spec drift
             missing.append(f"{name} (unknown parameter type: {ptype})")

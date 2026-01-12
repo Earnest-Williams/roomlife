@@ -189,38 +189,50 @@ class ActionCatalog:
         return validate_action_spec(state, spec, self.item_meta, call.params)
 
     def _list_purchase_actions(self, state: State) -> List[ActionCard]:
+        from .engine import _get_shop_catalog, _get_item_metadata
+
         cards: List[ActionCard] = []
         spec = self.specs.get("purchase_item")
         if spec is None:
             return cards
 
-        # List all purchasable items (items with price > 0)
-        for item_id, meta in self.item_meta.items():
-            if meta.price <= 0:
-                continue
+        # Get purchasable items from shop catalog
+        catalog = _get_shop_catalog()
+        for category in catalog.get("categories", []):
+            for item_id in category.get("items", []):
+                metadata = _get_item_metadata(item_id)
+                price = metadata.get("price", 0)
 
-            call = ActionCall("purchase_item", {"item_id": item_id})
-            ok, reason, missing = self._validate_call(state, call)
+                if price <= 0:
+                    continue
 
-            # Check if player has enough money
-            if state.player.money_pence < meta.price:
-                ok = False
-                missing.append(f"need {meta.price}p (have {state.player.money_pence}p)")
+                call = ActionCall("purchase_item", {"item_id": item_id})
+                ok, reason, missing = self._validate_call(state, call)
 
-            cards.append(
-                ActionCard(
-                    call=call,
-                    display_name=f"Purchase {meta.name}",
-                    description=f"{meta.description or ''} (Cost: {meta.price}p)",
-                    available=ok,
-                    why_locked=None if ok else reason,
-                    missing_requirements=missing,
+                # Check if player has enough money
+                if state.player.money_pence < price:
+                    ok = False
+                    missing.append(f"need {price}p (have {state.player.money_pence}p)")
+
+                item_name = metadata.get("name", item_id)
+                description = metadata.get("description", "")
+
+                cards.append(
+                    ActionCard(
+                        call=call,
+                        display_name=f"Purchase {item_name}",
+                        description=f"{description} (Cost: {price}p)",
+                        available=ok,
+                        why_locked=None if ok else reason,
+                        missing_requirements=missing,
+                    )
                 )
-            )
 
         return cards
 
     def _list_sell_actions(self, state: State) -> List[ActionCard]:
+        from .engine import _get_item_metadata
+
         cards: List[ActionCard] = []
         spec = self.specs.get("sell_item")
         if spec is None:
@@ -235,24 +247,28 @@ class ActionCatalog:
             if item.item_id in seen_item_ids:
                 continue
 
-            meta = self.item_meta.get(item.item_id)
-            if not meta or meta.price <= 0:
+            metadata = _get_item_metadata(item.item_id)
+            base_price = metadata.get("price", 0)
+
+            if base_price <= 0:
                 continue
 
             seen_item_ids.add(item.item_id)
 
             # Calculate sell price
             condition_multiplier = item.condition_value / 100.0
-            sell_price = int(meta.price * 0.4 * condition_multiplier)
+            sell_price = int(base_price * 0.4 * condition_multiplier)
             sell_price = max(100, sell_price)
 
             call = ActionCall("sell_item", {"item_id": item.item_id})
             ok, reason, missing = self._validate_call(state, call)
 
+            item_name = metadata.get("name", item.item_id)
+
             cards.append(
                 ActionCard(
                     call=call,
-                    display_name=f"Sell {meta.name}",
+                    display_name=f"Sell {item_name}",
                     description=f"Sell for ~{sell_price}p (condition: {item.condition})",
                     available=ok,
                     why_locked=None if ok else reason,
@@ -263,6 +279,8 @@ class ActionCatalog:
         return cards
 
     def _list_discard_actions(self, state: State) -> List[ActionCard]:
+        from .engine import _get_item_metadata
+
         cards: List[ActionCard] = []
         spec = self.specs.get("discard_item")
         if spec is None:
@@ -279,8 +297,8 @@ class ActionCatalog:
 
             seen_item_ids.add(item.item_id)
 
-            meta = self.item_meta.get(item.item_id)
-            item_name = meta.name if meta else item.item_id.replace("_", " ").title()
+            metadata = _get_item_metadata(item.item_id)
+            item_name = metadata.get("name", item.item_id.replace("_", " ").title())
 
             call = ActionCall("discard_item", {"item_id": item.item_id})
             ok, reason, missing = self._validate_call(state, call)

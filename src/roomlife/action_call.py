@@ -18,4 +18,12 @@ class ActionCall:
                 "repair_item",
                 {"item_ref": {"mode": "by_item_id", "item_id": action_id[len("repair_"):]}},
             )
+        if action_id.startswith("purchase_"):
+            return ActionCall("purchase_item", {"item_id": action_id[len("purchase_"):]})
+        if action_id.startswith("sell_"):
+            return ActionCall("sell_item", {"item_id": action_id[len("sell_"):]})
+        if action_id.startswith("discard_"):
+            return ActionCall("discard_item", {"item_id": action_id[len("discard_"):]})
+        if action_id.startswith("apply_job_"):
+            return ActionCall("apply_job", {"job_id": action_id[len("apply_job_"):]})
         return ActionCall(action_id, {})

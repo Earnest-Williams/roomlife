@@ -791,18 +791,19 @@ def execute_action(
         return
 
     if spec.id == "purchase_item":
+        from .engine import _get_item_metadata
+
         item_id = action_call.params.get("item_id")
         if not item_id or not isinstance(item_id, str):
             _log(state, "action.failed", action_id=spec.id, reason="invalid_item_id")
             return
 
-        # Get item metadata
-        metadata = item_meta.get(item_id)
-        if not metadata:
-            _log(state, "action.failed", action_id=spec.id, reason="item_not_for_sale")
-            return
+        # Get item metadata from items.yaml (legacy format)
+        metadata = _get_item_metadata(item_id)
+        price = metadata.get("price", 0)
+        quality = metadata.get("quality", 1.0)
+        item_name = metadata.get("name", item_id)
 
-        price = metadata.price
         if price <= 0:
             _log(state, "action.failed", action_id=spec.id, reason="item_not_for_sale")
             return
@@ -823,10 +824,10 @@ def execute_action(
             placed_in=state.world.location,
             container=None,
             slot="floor",
-            quality=metadata.quality,
+            quality=quality,
             condition="pristine",
             condition_value=100,
-            bulk=metadata.bulk,
+            bulk=1,  # Default bulk
         )
         state.items.append(new_item)
 
@@ -836,11 +837,13 @@ def execute_action(
         tier = compute_tier(state, spec, item_meta, rng_seed=rng_seed)
         apply_outcome(state, spec, tier, item_meta, current_tick, emit_events=False)
 
-        _log(state, "shopping.purchase", item_id=item_id, item_name=metadata.name,
-             cost_pence=price, quality=metadata.quality, tier=tier)
+        _log(state, "shopping.purchase", item_id=item_id, item_name=item_name,
+             cost_pence=price, quality=quality, tier=tier)
         return
 
     if spec.id == "sell_item":
+        from .engine import _get_item_metadata
+
         item_id = action_call.params.get("item_id")
         if not item_id or not isinstance(item_id, str):
             _log(state, "action.failed", action_id=spec.id, reason="invalid_item_id")
@@ -857,15 +860,18 @@ def execute_action(
             _log(state, "action.failed", action_id=spec.id, reason="item_not_found")
             return
 
-        # Get item metadata
-        metadata = item_meta.get(item_id)
-        if not metadata or metadata.price <= 0:
+        # Get item metadata from items.yaml (legacy format)
+        metadata = _get_item_metadata(item_id)
+        base_price = metadata.get("price", 0)
+        item_name = metadata.get("name", item_id)
+
+        if base_price <= 0:
             _log(state, "action.failed", action_id=spec.id, reason="item_not_sellable")
             return
 
         # Calculate sell price: 40% of base price, adjusted by condition
         condition_multiplier = item_to_sell.condition_value / 100.0
-        sell_price = int(metadata.price * 0.4 * condition_multiplier)
+        sell_price = int(base_price * 0.4 * condition_multiplier)
         sell_price = max(100, sell_price)  # Minimum sell price
 
         # Add money
@@ -880,11 +886,13 @@ def execute_action(
         tier = compute_tier(state, spec, item_meta, rng_seed=rng_seed)
         apply_outcome(state, spec, tier, item_meta, current_tick, emit_events=False)
 
-        _log(state, "shopping.sell", item_id=item_id, item_name=metadata.name,
+        _log(state, "shopping.sell", item_id=item_id, item_name=item_name,
              earned_pence=sell_price, condition=item_to_sell.condition, tier=tier)
         return
 
     if spec.id == "discard_item":
+        from .engine import _get_item_metadata
+
         item_id = action_call.params.get("item_id")
         if not item_id or not isinstance(item_id, str):
             _log(state, "action.failed", action_id=spec.id, reason="invalid_item_id")
@@ -902,15 +910,14 @@ def execute_action(
             return
 
         # Get item metadata for display name
-        metadata = item_meta.get(item_id)
-        item_name = metadata.name if metadata else item_id
+        metadata = _get_item_metadata(item_id)
+        item_name = metadata.get("name", item_id)
 
         # Remove item
         state.items.remove(item_to_discard)
 
-        # Track minimalism habit (if it exists)
-        if hasattr(state.player.habit_tracker, "__setitem__"):
-            _track_habit(state, "minimalism", 2)
+        # Track minimalism habit
+        _track_habit(state, "minimalism", 2)
 
         _log(state, "shopping.discard", item_id=item_id, item_name=item_name,
              condition=item_to_discard.condition)
