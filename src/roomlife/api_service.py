@@ -444,7 +444,7 @@ class RoomLifeAPI:
                     self.state, spec, self._item_meta, rng_seed=1, samples=9
                 )
                 delta_ranges = preview_delta_ranges(spec)
-                notes = build_preview_notes(self.state, spec, self._item_meta)
+                notes = build_preview_notes(self.state, spec, self._item_meta, card.call)
                 preview = ActionPreview(
                     tier_distribution=tier_dist,
                     delta_ranges=delta_ranges,
