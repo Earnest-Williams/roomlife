@@ -124,6 +124,12 @@ actions:
         cook_surface: 0.30
       tier_floor: 0   # opt-in: cooking can fail when requirements are met
 
+    dynamic:
+      director:
+        suggest: true
+        tags: ["selfcare", "survival"]
+        cooldown_days: 0  # Can be suggested daily
+
     # Costs/consumption on success tiers (or on all tiers if specified).
     consumes:
       money_pence: 300
@@ -293,6 +299,11 @@ actions:
     modifiers:
       primary_skill: maintenance
       secondary_skills: {}
+    dynamic:
+      director:
+        suggest: true
+        tags: ["selfcare"]
+        cooldown_days: 0
     outcomes:
       1:
         events: [{ id: "action.shower", params: {} }]
@@ -335,6 +346,11 @@ actions:
         resource_management: 0.15
       item_provides_weights:
         cleaning_kit: 1.0
+    dynamic:
+      director:
+        suggest: true
+        tags: ["chore"]
+        cooldown_days: 1
     consumes:
       item_durability:
         provides: "cleaning_kit"
@@ -567,6 +583,11 @@ actions:
       item_provides_weights:
         workspace: 1.0
       tier_floor: 0   # opt-in: requires and consumes workspace
+    dynamic:
+      director:
+        suggest: true
+        tags: ["work", "finance"]
+        cooldown_days: 0
     consumes:
       item_durability:
         provides: "workspace"
@@ -664,6 +685,11 @@ actions:
       item_provides_weights:
         sleeping_surface: 1.0
       tier_floor: 0   # opt-in: requires and consumes sleeping_surface
+    dynamic:
+      director:
+        suggest: true
+        tags: ["selfcare"]
+        cooldown_days: 0
     consumes:
       item_durability:
         provides: "sleeping_surface"
