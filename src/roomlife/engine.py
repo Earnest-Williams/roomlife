@@ -84,9 +84,10 @@ _ITEM_METADATA_CACHE = None
 _SHOP_CATALOG_CACHE = None
 
 # Data-driven action system caches
-_ACTION_SPECS = None
-_ITEM_META = None
-_SPACE_SPECS = None
+_ACTION_SPECS: Dict[str, "ActionSpec"] = {}
+_ITEM_META: Dict[str, "ItemMeta"] = {}
+_SPACE_SPECS: Dict[str, "SpaceSpec"] = {}
+_SPECS_LOADED = False
 
 
 def _get_item_tags(item_id: str) -> set:
@@ -356,59 +357,55 @@ def _ensure_specs_loaded() -> None:
     - Actions with same id override base actions (later packs override earlier packs)
     - This allows packs to provide variants or extensions of base actions
     """
-    global _ACTION_SPECS, _ITEM_META, _SPACE_SPECS
+    global _ACTION_SPECS, _ITEM_META, _SPACE_SPECS, _SPECS_LOADED
 
     # Find data directory relative to this file
     data_dir = Path(__file__).parent.parent.parent / "data"
 
-    if _ACTION_SPECS is None:
-        # Load base actions
-        actions_path = data_dir / "actions.yaml"
-        if actions_path.exists():
-            try:
-                _ACTION_SPECS = load_actions(actions_path)
-            except ValueError as exc:
-                logger.warning(f"Failed to load actions.yaml: {exc}")
-                _ACTION_SPECS = {}
-        else:
-            _ACTION_SPECS = {}
+    if _SPECS_LOADED:
+        return
 
-        # Load content packs (deterministic order by sorted directory name)
-        packs_dir = data_dir / "packs"
-        if packs_dir.exists() and packs_dir.is_dir():
-            pack_dirs = sorted([d for d in packs_dir.iterdir() if d.is_dir()])
-            for pack_dir in pack_dirs:
-                pack_actions_path = pack_dir / "actions.yaml"
-                if pack_actions_path.exists():
-                    try:
-                        pack_actions = load_actions(pack_actions_path)
-                        # Merge pack actions (override if id matches)
-                        _ACTION_SPECS.update(pack_actions)
-                        logger.info(f"Loaded content pack: {pack_dir.name} ({len(pack_actions)} actions)")
-                    except ValueError as exc:
-                        logger.warning(f"Failed to load pack {pack_dir.name}/actions.yaml: {exc}")
+    _ACTION_SPECS.clear()
+    # Load base actions
+    actions_path = data_dir / "actions.yaml"
+    if actions_path.exists():
+        try:
+            _ACTION_SPECS.update(load_actions(actions_path))
+        except ValueError as exc:
+            logger.warning(f"Failed to load actions.yaml: {exc}")
 
-    if _ITEM_META is None:
-        items_path = data_dir / "items_meta.yaml"
-        if items_path.exists():
-            try:
-                _ITEM_META = load_item_meta(items_path)
-            except ValueError as exc:
-                logger.warning(f"Failed to load items_meta.yaml: {exc}")
-                _ITEM_META = {}
-        else:
-            _ITEM_META = {}
+    # Load content packs (deterministic order by sorted directory name)
+    packs_dir = data_dir / "packs"
+    if packs_dir.exists() and packs_dir.is_dir():
+        pack_dirs = sorted([d for d in packs_dir.iterdir() if d.is_dir()])
+        for pack_dir in pack_dirs:
+            pack_actions_path = pack_dir / "actions.yaml"
+            if pack_actions_path.exists():
+                try:
+                    pack_actions = load_actions(pack_actions_path)
+                    # Merge pack actions (override if id matches)
+                    _ACTION_SPECS.update(pack_actions)
+                    logger.info(f"Loaded content pack: {pack_dir.name} ({len(pack_actions)} actions)")
+                except ValueError as exc:
+                    logger.warning(f"Failed to load pack {pack_dir.name}/actions.yaml: {exc}")
 
-    if _SPACE_SPECS is None:
-        spaces_path = data_dir / "spaces.yaml"
-        if spaces_path.exists():
-            try:
-                _SPACE_SPECS = load_spaces(spaces_path)
-            except ValueError as exc:
-                logger.warning(f"Failed to load spaces.yaml: {exc}")
-                _SPACE_SPECS = {}
-        else:
-            _SPACE_SPECS = {}
+    _ITEM_META.clear()
+    items_path = data_dir / "items_meta.yaml"
+    if items_path.exists():
+        try:
+            _ITEM_META.update(load_item_meta(items_path))
+        except ValueError as exc:
+            logger.warning(f"Failed to load items_meta.yaml: {exc}")
+
+    _SPACE_SPECS.clear()
+    spaces_path = data_dir / "spaces.yaml"
+    if spaces_path.exists():
+        try:
+            _SPACE_SPECS.update(load_spaces(spaces_path))
+        except ValueError as exc:
+            logger.warning(f"Failed to load spaces.yaml: {exc}")
+
+    _SPECS_LOADED = True
 
 
 def new_game(seed: Optional[int] = None) -> State:
