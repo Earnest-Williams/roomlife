@@ -130,3 +130,91 @@ def test_all_parameter_types_are_supported():
                 unsupported.append(f"{action_id}.{param_name}: {param_type}")
 
     assert not unsupported, "actions.yaml contains unsupported parameter types:\n" + "\n".join(unsupported)
+
+
+def test_actions_with_required_provides_have_tier_floor_zero():
+    """Test that actions consuming durability from required capabilities have tier_floor=0.
+
+    When an action both requires and consumes durability from the same capability,
+    tier 0 must be possible (to handle the case where the item degrades to unusability
+    or disappears during consume-time).
+    """
+    actions = _load_yaml(DATA_DIR / "actions.yaml").get("actions", [])
+
+    errors = []
+    for action in actions:
+        action_id = action.get("id", "<unknown>")
+
+        # Extract required provides capabilities
+        req = (action or {}).get("requires", {}) or {}
+        items_req = req.get("items", {}) or {}
+        required_caps: set[str] = set()
+        required_caps.update(items_req.get("any_provides", []) or [])
+        required_caps.update(items_req.get("all_provides", []) or [])
+
+        # Check if consumes targets any required capability
+        consumes = (action or {}).get("consumes", {}) or {}
+        dur = consumes.get("item_durability", {}) or {}
+        consumed_cap = dur.get("provides")
+
+        if consumed_cap and consumed_cap in required_caps:
+            # This action consumes durability from a required capability - must have tier_floor=0
+            mods = (action or {}).get("modifiers", {}) or {}
+            tier_floor = mods.get("tier_floor")
+
+            if tier_floor != 0:
+                errors.append(
+                    f"{action_id}: consumes durability from required capability '{consumed_cap}' "
+                    f"but tier_floor={tier_floor} (must be 0)"
+                )
+
+            # Also check that tier 0 outcome exists
+            outcomes = (action or {}).get("outcomes", {}) or {}
+            if 0 not in outcomes:
+                errors.append(
+                    f"{action_id}: consumes durability from required capability '{consumed_cap}' "
+                    f"but no tier 0 outcome defined"
+                )
+
+    assert not errors, "Actions with required capability consumes need tier_floor=0:\n" + "\n".join(errors)
+
+
+def test_tier_floor_zero_actions_define_tier_zero_outcome():
+    """Test that actions with tier_floor=0 actually define a tier 0 outcome.
+
+    This prevents the engine from attempting to apply a tier 0 outcome that doesn't exist.
+    """
+    actions = _load_yaml(DATA_DIR / "actions.yaml").get("actions", [])
+
+    errors = []
+    for action in actions:
+        action_id = action.get("id", "<unknown>")
+        mods = (action or {}).get("modifiers", {}) or {}
+        tier_floor = mods.get("tier_floor")
+
+        if tier_floor == 0:
+            outcomes = (action or {}).get("outcomes", {}) or {}
+            if 0 not in outcomes:
+                errors.append(
+                    f"{action_id}: has tier_floor=0 but does not define tier 0 outcome"
+                )
+
+    assert not errors, "Actions with tier_floor=0 must define tier 0 outcome:\n" + "\n".join(errors)
+
+
+def test_all_actions_define_tier_one_outcome():
+    """Test that all actions define at least a tier 1 outcome.
+
+    Tier 1 is the default "normal success" tier and should always be present.
+    """
+    actions = _load_yaml(DATA_DIR / "actions.yaml").get("actions", [])
+
+    errors = []
+    for action in actions:
+        action_id = action.get("id", "<unknown>")
+        outcomes = (action or {}).get("outcomes", {}) or {}
+
+        if 1 not in outcomes:
+            errors.append(f"{action_id}: missing tier 1 outcome")
+
+    assert not errors, "All actions must define tier 1 outcome:\n" + "\n".join(errors)

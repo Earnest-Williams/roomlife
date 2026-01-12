@@ -47,6 +47,7 @@ actions:
     modifiers:
       primary_skill: maintenance
       secondary_skills: {}
+      tier_floor: 0   # opt-in: this action can genuinely fail / partially succeed
     dynamic:
       cost_formula:
         base_per_damage_pence: 10
@@ -56,6 +57,7 @@ actions:
         base: 30
         per_skill_point: 0.5
     outcomes:
+      0: { events: [{ id: "action.failed", params: { reason: "repair_failed" } }], deltas: { needs: { stress: 2, mood: -1 } } }
       1: { events: [{ id: "action.repair_item", params: {} }], deltas: { skills_xp: { maintenance: 2.0 } } }
       2: { events: [{ id: "action.repair_item", params: { quality: "good" } }], deltas: { skills_xp: { maintenance: 2.3 } } }
       3: { events: [{ id: "action.repair_item", params: { quality: "great" } }], deltas: { skills_xp: { maintenance: 2.7 } } }
@@ -120,6 +122,7 @@ actions:
       item_provides_weights:
         heat_source: 0.70
         cook_surface: 0.30
+      tier_floor: 0   # opt-in: cooking can fail when requirements are met
 
     # Costs/consumption on success tiers (or on all tiers if specified).
     consumes:
@@ -185,6 +188,7 @@ actions:
       primary_skill: nutrition
       secondary_skills:
         resource_management: 0.35
+      tier_floor: 0   # opt-in: meal prep can fail when requirements are met
     consumes:
       money_pence: 600
       item_durability:
@@ -380,11 +384,19 @@ actions:
       primary_skill: maintenance
       secondary_skills:
         resource_management: 0.20
+      tier_floor: 0   # opt-in: requires and consumes cleaning_kit
     consumes:
       item_durability:
         provides: "cleaning_kit"
         amount: 5
     outcomes:
+      0:
+        events: [{ id: "action.failed", params: { reason: "deep_clean_failed" } }]
+        deltas:
+          needs:
+            stress: 2
+            mood: -1
+            fatigue: 4
       1:
         events: [{ id: "action.deep_clean", params: {} }]
         deltas:
@@ -554,11 +566,18 @@ actions:
         fitness: 0.10
       item_provides_weights:
         workspace: 1.0
+      tier_floor: 0   # opt-in: requires and consumes workspace
     consumes:
       item_durability:
         provides: "workspace"
         amount: 3
     outcomes:
+      0:
+        events: [{ id: "action.failed", params: { reason: "work_failed" } }]
+        deltas:
+          needs:
+            mood: -4
+            stress: 3
       1:
         events: [{ id: "action.work", params: {} }]
         deltas:
@@ -591,11 +610,19 @@ actions:
         discipline: 0.10
       item_provides_weights:
         workspace: 1.0
+      tier_floor: 0   # opt-in: requires and consumes workspace
     consumes:
       item_durability:
         provides: "workspace"
         amount: 2
     outcomes:
+      0:
+        events: [{ id: "action.failed", params: { reason: "study_failed" } }]
+        deltas:
+          needs:
+            fatigue: 8
+            mood: -2
+            stress: 2
       1:
         events: [{ id: "action.study", params: {} }]
         deltas:
@@ -636,11 +663,18 @@ actions:
         fitness: 0.20
       item_provides_weights:
         sleeping_surface: 1.0
+      tier_floor: 0   # opt-in: requires and consumes sleeping_surface
     consumes:
       item_durability:
         provides: "sleeping_surface"
         amount: 2
     outcomes:
+      0:
+        events: [{ id: "action.failed", params: { reason: "poor_sleep" } }]
+        deltas:
+          needs:
+            fatigue: -15
+            mood: -1
       1:
         events: [{ id: "action.sleep", params: {} }]
         deltas:
