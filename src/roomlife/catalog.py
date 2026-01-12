@@ -242,6 +242,11 @@ class ActionCatalog:
         items_here = state.get_items_at(state.world.location)
         seen_item_ids = set()
 
+        # NOTE: Only one action per item_id is shown, even if multiple instances exist.
+        # The first instance encountered is used for price/condition display, and will be
+        # the one sold when the action is executed. This matches legacy behavior but means
+        # players cannot choose which instance to sell if they have duplicates.
+        # Future enhancement: allow instance-level selection for items with same item_id.
         for item in items_here:
             # Only list each item_id once
             if item.item_id in seen_item_ids:
@@ -290,6 +295,9 @@ class ActionCatalog:
         items_here = state.get_items_at(state.world.location)
         seen_item_ids = set()
 
+        # NOTE: Only one action per item_id is shown, even if multiple instances exist.
+        # The first instance encountered will be discarded. This matches legacy behavior.
+        # Future enhancement: allow instance-level selection for items with same item_id.
         for item in items_here:
             # Only list each item_id once
             if item.item_id in seen_item_ids:
