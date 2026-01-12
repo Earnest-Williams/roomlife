@@ -75,8 +75,7 @@ def record_interaction_event(
         **params: Event parameters
     """
     state.event_log.append({"event_id": event_id, "params": params})
-    if len(state.event_log) > MAX_EVENT_LOG:
-        state.event_log = state.event_log[-MAX_EVENT_LOG:]
+    # Note: event_log is a deque with maxlen, so it automatically maintains max length
 
 
 def apply_social_effects(

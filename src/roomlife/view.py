@@ -121,6 +121,6 @@ def build_view_model(state: State) -> Dict:
             {"item_id": it.item_id, "condition": it.condition, "slot": it.slot}
             for it in state.get_items_at(loc)
         ],
-        "recent_events": state.event_log[-6:],
+        "recent_events": list(state.event_log)[-6:],
         "actions_hint": actions_hint,
     }
