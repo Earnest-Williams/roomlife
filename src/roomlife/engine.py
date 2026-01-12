@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import logging
 import random
+import yaml
 from dataclasses import asdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -36,12 +38,14 @@ from .action_engine import (
 from . import npc_ai
 from . import director
 
+# Module-level constants
+DATA_DIR = Path(__file__).resolve().parents[2] / "data"
+logger = logging.getLogger(__name__)
+
 
 def _log(state: State, event_id: str, **params: object) -> None:
+    """Log an event to the bounded event log (automatically trims via deque maxlen)."""
     state.event_log.append({"event_id": event_id, "params": params})
-    # Limit event log size to prevent unbounded growth
-    if len(state.event_log) > MAX_EVENT_LOG:
-        state.event_log = state.event_log[-MAX_EVENT_LOG:]
 
 
 def _get_skill(state: State, skill_name: str) -> Skill:
@@ -49,31 +53,28 @@ def _get_skill(state: State, skill_name: str) -> Skill:
     return state.player.skills_detailed[skill_name]
 
 
-def _load_item_tags() -> Dict[str, List[str]]:
-    """Load item tags from items.yaml data file."""
-    import yaml
-    from pathlib import Path
-
-    data_path = Path(__file__).parent.parent.parent / "data" / "items.yaml"
+def _load_item_tags() -> Dict[str, set]:
+    """Load item tags from items.yaml data file as sets for O(1) membership tests."""
+    data_path = DATA_DIR / "items.yaml"
     try:
         with open(data_path, "r") as f:
             data = yaml.safe_load(f)
     except FileNotFoundError:
-        print(f"Warning: items.yaml not found at {data_path}, returning empty tags")
+        logger.warning(f"items.yaml not found at {data_path}, returning empty tags")
         return {}
     except yaml.YAMLError as e:
-        print(f"Warning: Failed to parse items.yaml: {e}, returning empty tags")
+        logger.warning(f"Failed to parse items.yaml: {e}, returning empty tags")
         return {}
     except Exception as e:
-        print(f"Warning: Unexpected error loading items.yaml: {e}, returning empty tags")
+        logger.warning(f"Unexpected error loading items.yaml: {e}, returning empty tags")
         return {}
 
     item_tags = {}
     try:
         for item_def in data.get("items", []):
-            item_tags[item_def["id"]] = item_def.get("tags", [])
+            item_tags[item_def["id"]] = set(item_def.get("tags", []))
     except (KeyError, TypeError) as e:
-        print(f"Warning: Malformed items.yaml data structure: {e}, returning partial tags")
+        logger.warning(f"Malformed items.yaml data structure: {e}, returning partial tags")
     return item_tags
 
 
@@ -88,25 +89,22 @@ _ITEM_META = None
 _SPACE_SPECS = None
 
 
-def _get_item_tags(item_id: str) -> List[str]:
-    """Get tags for a specific item."""
+def _get_item_tags(item_id: str) -> set:
+    """Get tags for a specific item as a set for O(1) membership tests."""
     global _ITEM_TAGS_CACHE
     if _ITEM_TAGS_CACHE is None:
         _ITEM_TAGS_CACHE = _load_item_tags()
-    return _ITEM_TAGS_CACHE.get(item_id, [])
+    return _ITEM_TAGS_CACHE.get(item_id, set())
 
 
 def _load_item_metadata() -> Dict[str, dict]:
     """Load item metadata (price, quality, description) from items.yaml."""
-    import yaml
-    from pathlib import Path
-
-    data_path = Path(__file__).parent.parent.parent / "data" / "items.yaml"
+    data_path = DATA_DIR / "items.yaml"
     try:
         with open(data_path, "r") as f:
             data = yaml.safe_load(f)
     except (FileNotFoundError, yaml.YAMLError, Exception) as e:
-        print(f"Warning: Failed to load items.yaml: {e}")
+        logger.warning(f"Failed to load items.yaml: {e}")
         return {}
 
     item_metadata = {}
@@ -118,10 +116,10 @@ def _load_item_metadata() -> Dict[str, dict]:
                 "price": item_def.get("price", 0),
                 "quality": item_def.get("quality", 1.0),
                 "description": item_def.get("description", ""),
-                "tags": item_def.get("tags", []),
+                "tags": set(item_def.get("tags", [])),
             }
     except (KeyError, TypeError) as e:
-        print(f"Warning: Malformed items.yaml data: {e}")
+        logger.warning(f"Malformed items.yaml data: {e}")
     return item_metadata
 
 
@@ -135,21 +133,18 @@ def _get_item_metadata(item_id: str) -> dict:
         "price": 0,
         "quality": 1.0,
         "description": "",
-        "tags": [],
+        "tags": set(),
     })
 
 
 def _load_shop_catalog() -> dict:
     """Load shop catalog from shop_catalog.yaml."""
-    import yaml
-    from pathlib import Path
-
-    data_path = Path(__file__).parent.parent.parent / "data" / "shop_catalog.yaml"
+    data_path = DATA_DIR / "shop_catalog.yaml"
     try:
         with open(data_path, "r") as f:
             return yaml.safe_load(f) or {}
     except (FileNotFoundError, yaml.YAMLError, Exception) as e:
-        print(f"Warning: Failed to load shop_catalog.yaml: {e}")
+        logger.warning(f"Failed to load shop_catalog.yaml: {e}")
         return {}
 
 
@@ -289,29 +284,36 @@ def _check_job_requirements(state: State, job_id: str) -> Tuple[bool, str]:
 
 
 def _apply_skill_rust(state: State, current_tick: int) -> None:
+    """Apply skill rust with localized attribute lookups for performance."""
+    skills = state.player.skills_detailed
+    discipline = state.player.traits.discipline
+    discipline_mod_base = (discipline / 100.0) * 0.3
+
     for skill_name in SKILL_NAMES:
-        skill = _get_skill(state, skill_name)
+        skill = skills[skill_name]
         ticks_passed = current_tick - skill.last_tick
         if ticks_passed > 0 and skill.value > 0:
-            rust_amount = skill.rust_rate * ticks_passed
-            discipline_mod = 1.0 - (state.player.traits.discipline / 100.0) * 0.3
-            rust_amount *= discipline_mod
+            rust_amount = skill.rust_rate * ticks_passed * (1.0 - discipline_mod_base)
             skill.value = max(0.0, skill.value - rust_amount)
             skill.last_tick = current_tick
 
 
 def _gain_skill_xp(state: State, skill_name: str, gain: float, current_tick: int) -> float:
-    skill = _get_skill(state, skill_name)
-    curiosity_mod = 1.0 + (state.player.traits.curiosity / 100.0) * 0.3
+    """Apply skill XP gain with localized attribute lookups for performance."""
+    skill = state.player.skills_detailed[skill_name]
+    curiosity = state.player.traits.curiosity
+    curiosity_mod = 1.0 + (curiosity / 100.0) * 0.3
     health_penalty = _get_health_penalty(state)  # Apply health penalty to skill gains
     actual_gain = gain * curiosity_mod * health_penalty
     skill.value += actual_gain
     skill.last_tick = current_tick
+
+    # Update aptitude
     aptitude_name = SKILL_TO_APTITUDE[skill_name]
-    aptitude = getattr(state.player.aptitudes, aptitude_name)
+    aptitudes = state.player.aptitudes
     aptitude_gain = actual_gain * 0.002
-    new_aptitude = aptitude + aptitude_gain
-    setattr(state.player.aptitudes, aptitude_name, new_aptitude)
+    new_aptitude = getattr(aptitudes, aptitude_name) + aptitude_gain
+    setattr(aptitudes, aptitude_name, new_aptitude)
     return actual_gain
 
 
@@ -338,7 +340,7 @@ def _calculate_current_tick(state: State) -> int:
         slice_index = TIME_SLICES.index(state.world.slice)
     except ValueError:
         # Invalid slice, default to 0 (morning)
-        print(f"Warning: Invalid time slice '{state.world.slice}' in _calculate_current_tick, using 0")
+        logger.warning(f"Invalid time slice '{state.world.slice}' in _calculate_current_tick, using 0")
         slice_index = 0
     return state.world.day * 4 + slice_index
 
@@ -366,7 +368,7 @@ def _ensure_specs_loaded() -> None:
             try:
                 _ACTION_SPECS = load_actions(actions_path)
             except ValueError as exc:
-                print(f"Warning: Failed to load actions.yaml: {exc}")
+                logger.warning(f"Failed to load actions.yaml: {exc}")
                 _ACTION_SPECS = {}
         else:
             _ACTION_SPECS = {}
@@ -382,9 +384,9 @@ def _ensure_specs_loaded() -> None:
                         pack_actions = load_actions(pack_actions_path)
                         # Merge pack actions (override if id matches)
                         _ACTION_SPECS.update(pack_actions)
-                        print(f"Loaded content pack: {pack_dir.name} ({len(pack_actions)} actions)")
+                        logger.info(f"Loaded content pack: {pack_dir.name} ({len(pack_actions)} actions)")
                     except ValueError as exc:
-                        print(f"Warning: Failed to load pack {pack_dir.name}/actions.yaml: {exc}")
+                        logger.warning(f"Failed to load pack {pack_dir.name}/actions.yaml: {exc}")
 
     if _ITEM_META is None:
         items_path = data_dir / "items_meta.yaml"
@@ -392,7 +394,7 @@ def _ensure_specs_loaded() -> None:
             try:
                 _ITEM_META = load_item_meta(items_path)
             except ValueError as exc:
-                print(f"Warning: Failed to load items_meta.yaml: {exc}")
+                logger.warning(f"Failed to load items_meta.yaml: {exc}")
                 _ITEM_META = {}
         else:
             _ITEM_META = {}
@@ -403,7 +405,7 @@ def _ensure_specs_loaded() -> None:
             try:
                 _SPACE_SPECS = load_spaces(spaces_path)
             except ValueError as exc:
-                print(f"Warning: Failed to load spaces.yaml: {exc}")
+                logger.warning(f"Failed to load spaces.yaml: {exc}")
                 _SPACE_SPECS = {}
         else:
             _SPACE_SPECS = {}
@@ -424,8 +426,11 @@ def new_game(seed: Optional[int] = None) -> State:
     # Store simulation seed for deterministic NPC/director behavior
     state.world.rng_seed = seed if seed is not None else 0
 
+    # Initialize and store reusable RNG instance
+    state.world.rng = random.Random(seed)
+
     # Create RNG for deterministic ID generation if seed provided
-    rng = random.Random(seed) if seed is not None else None
+    rng = state.world.rng if seed is not None else None
 
     # Load spaces from YAML
     _ensure_specs_loaded()
@@ -542,7 +547,7 @@ def _advance_time(state: State) -> None:
         idx = TIME_SLICES.index(state.world.slice)
     except ValueError:
         # If current slice is invalid, reset to first slice
-        print(f"Warning: Invalid time slice '{state.world.slice}', resetting to '{TIME_SLICES[0]}'")
+        logger.warning(f"Invalid time slice '{state.world.slice}', resetting to '{TIME_SLICES[0]}'")
         state.world.slice = TIME_SLICES[0]
         _log(state, "time.advance", day=state.world.day, slice=state.world.slice)
         return
@@ -690,10 +695,12 @@ def apply_action(
         time_slice_index = TIME_SLICES.index(state.world.slice)
     except ValueError:
         # If current slice is invalid, use 0 as fallback
-        print(f"Warning: Invalid time slice '{state.world.slice}' in apply_action, using 0")
+        logger.warning(f"Invalid time slice '{state.world.slice}' in apply_action, using 0")
         time_slice_index = 0
 
-    rng = random.Random(rng_seed + state.world.day * 97 + time_slice_index)
+    # Reuse stored RNG instance with deterministic seeding for this action
+    rng = state.world.rng
+    rng.seed(rng_seed + state.world.day * 97 + time_slice_index)
     current_tick = _calculate_current_tick(state)
 
     # Data-driven action system: Check if action has a YAML spec first
