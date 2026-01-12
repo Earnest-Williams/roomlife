@@ -728,6 +728,22 @@ class RoomLifeAPI:
             category = ActionCategory.OTHER
             if spec is not None:
                 category = self._get_action_category(spec.category)
+
+            # Generate preview for better player clarity
+            preview = None
+            if spec is not None:
+                # Cheap + deterministic previews
+                tier_dist = preview_tier_distribution(
+                    self.state, spec, self._item_meta, rng_seed=1, samples=9
+                )
+                delta_ranges = preview_delta_ranges(spec)
+                notes = build_preview_notes(self.state, spec, self._item_meta)
+                preview = ActionPreview(
+                    tier_distribution=tier_dist,
+                    delta_ranges=delta_ranges,
+                    notes=notes,
+                )
+
             actions.append(ActionMetadata(
                 action_id=card.call.action_id,
                 display_name=card.display_name,
@@ -739,6 +755,7 @@ class RoomLifeAPI:
                 available=card.available,
                 why_locked=card.why_locked,
                 missing_requirements=card.missing_requirements,
+                preview=preview,
             ))
         return actions
 

@@ -45,6 +45,8 @@ class ActionCatalog:
 
         cards.extend(self._list_move_actions(state))
         cards.extend(self._list_repair_actions(state))
+        cards.extend(self._list_pickup_actions(state))
+        cards.extend(self._list_drop_actions(state))
 
         return cards
 
@@ -103,6 +105,73 @@ class ActionCatalog:
                     missing_requirements=missing,
                 )
             )
+        return cards
+
+    def _list_pickup_actions(self, state: State) -> List[ActionCard]:
+        cards: List[ActionCard] = []
+        spec = self.specs.get("pick_up_item")
+        if spec is None:
+            return cards
+
+        here = state.world.location
+        for item in state.items:
+            if item.placed_in != here:
+                continue
+
+            call = ActionCall(
+                "pick_up_item",
+                {"item_ref": {"mode": "instance_id", "instance_id": item.instance_id}},
+            )
+            ok, reason, missing = self._validate_call(state, call)
+
+            # Use item_meta for nicer names if available
+            meta = self.item_meta.get(item.item_id)
+            item_name = meta.name if meta else item.item_id.replace("_", " ").title()
+
+            cards.append(
+                ActionCard(
+                    call=call,
+                    display_name=f"Pick up {item_name}",
+                    description=spec.description,
+                    available=ok,
+                    why_locked=None if ok else reason,
+                    missing_requirements=missing,
+                )
+            )
+
+        return cards
+
+    def _list_drop_actions(self, state: State) -> List[ActionCard]:
+        cards: List[ActionCard] = []
+        spec = self.specs.get("drop_item")
+        if spec is None:
+            return cards
+
+        for item in state.items:
+            if item.placed_in != "inventory":
+                continue
+
+            call = ActionCall(
+                "drop_item",
+                {"item_ref": {"mode": "instance_id", "instance_id": item.instance_id}},
+            )
+            ok, reason, missing = self._validate_call(state, call)
+
+            # Use item_meta for nicer names if available
+            meta = self.item_meta.get(item.item_id)
+            item_name = meta.name if meta else item.item_id.replace("_", " ").title()
+
+            cards.append(
+                ActionCard(
+                    call=call,
+                    display_name=f"Drop {item_name}",
+                    description=spec.description,
+                    available=ok,
+                    why_locked=None if ok else reason,
+                    missing_requirements=missing,
+                )
+            )
+
         return cards
 
     def _validate_call(

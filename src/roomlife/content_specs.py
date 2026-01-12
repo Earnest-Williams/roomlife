@@ -116,10 +116,24 @@ def load_actions(path: str | Path) -> Dict[str, ActionSpec]:
     if not isinstance(actions, list):
         raise ValueError(f"{file_path}: actions must be a list")
 
+    seen: Dict[str, int] = {}  # action_id -> first line number
+
     for idx, a in enumerate(actions):
         line = _get_action_line(a, line_map, index_lines, idx)
         _validate_action_dict(a, file_path, line)
-        out[a["id"]] = ActionSpec(
+
+        action_id = a["id"]
+        if action_id in seen:
+            first_line = seen[action_id]
+            this_line = line if line is not None else "?"
+            raise ValueError(
+                f"{file_path}:{this_line}: duplicate action id '{action_id}' "
+                f"(first defined at line {first_line})"
+            )
+
+        seen[action_id] = line if line is not None else -1
+
+        out[action_id] = ActionSpec(
             id=a["id"],
             display_name=a.get("display_name", a["id"]),
             description=a.get("description", ""),
@@ -175,12 +189,15 @@ def _get_action_line(
     index_lines: List[int],
     index: int,
 ) -> int | None:
+    # Prefer index-based line numbers; id-based mapping can't disambiguate duplicates.
+    if index < len(index_lines):
+        return index_lines[index]
+
     if isinstance(action, dict):
         action_id = action.get("id")
         if isinstance(action_id, str) and action_id in line_map:
             return line_map[action_id]
-    if index < len(index_lines):
-        return index_lines[index]
+
     return None
 
 

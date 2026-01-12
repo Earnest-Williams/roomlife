@@ -60,7 +60,7 @@ items:
       max: 50
       degrade_per_use_default: 2
 
-  - id: vacuum_cleaner
+  - id: vacuum
     name: "Vacuum cleaner"
     tags: ["appliance", "cleaning"]
     provides: ["cleaning_kit", "deep_clean_tool"]
@@ -135,21 +135,6 @@ items:
       max: 60
       degrade_per_use_default: 1
 
-  # Consumables (future-ready for inventory system)
-  - id: meal_portion
-    name: "Meal portion"
-    tags: ["consumable", "food"]
-    provides: ["prepared_meal"]
-    requires_utilities: []
-    durability: null  # Consumables don't degrade, they're consumed
-
-  - id: leftovers_portion
-    name: "Leftovers"
-    tags: ["consumable", "food"]
-    provides: ["prepared_meal"]
-    requires_utilities: []
-    durability: null
-
   # Exercise equipment
   - id: dumbbells
     name: "Dumbbells"
@@ -179,8 +164,8 @@ items:
       max: 100
       degrade_per_use_default: 2
 
-  - id: laptop_premium
-    name: "Premium laptop"
+  - id: laptop_professional
+    name: "Professional laptop"
     tags: ["laptop", "tech"]
     provides: ["computing", "workspace"]
     requires_utilities: ["power"]
@@ -189,7 +174,7 @@ items:
       degrade_per_use_default: 1
 
   # Lighting
-  - id: desk_lamp
+  - id: lamp_desk
     name: "Desk lamp"
     tags: ["lighting"]
     provides: ["task_lighting"]
@@ -198,7 +183,7 @@ items:
       max: 100
       degrade_per_use_default: 1
 
-  - id: floor_lamp
+  - id: lamp_floor
     name: "Floor lamp"
     tags: ["lighting"]
     provides: ["ambient_lighting"]

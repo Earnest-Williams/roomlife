@@ -82,6 +82,9 @@ def validate_parameters(
 ) -> Tuple[bool, List[str]]:
     missing: List[str] = []
 
+    # Supported parameter types
+    SUPPORTED_TYPES = {"space_id", "item_ref"}
+
     for p in spec.parameters or []:
         name = p["name"]
         if p.get("required") and name not in params:
@@ -101,6 +104,9 @@ def validate_parameters(
                 continue
             constraints = p.get("constraints", {})
             missing.extend(_validate_item_constraints(state, params[name], constraints))
+        else:
+            # Fail hard on unknown types to prevent spec drift
+            missing.append(f"{name} (unknown parameter type: {ptype})")
 
     return (len(missing) == 0), missing
 
