@@ -173,14 +173,18 @@ def maybe_trigger_daily_building_event(
 
     for action_id, spec, npc_id, weight in candidates:
         cumulative += weight
-        if pick <= cumulative:
+        if pick < cumulative:
             chosen_action_id = action_id
             chosen_spec = spec
             chosen_npc_id = npc_id
             break
 
+    # Fallback in case floating-point issues prevented a selection
     if chosen_spec is None or chosen_npc_id is None:
-        return  # Shouldn't happen, but be safe
+        action_id, spec, npc_id, _ = candidates[-1]
+        chosen_action_id = action_id
+        chosen_spec = spec
+        chosen_npc_id = npc_id
 
     # Get the NPC
     npc = state.npcs.get(chosen_npc_id)

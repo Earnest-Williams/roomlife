@@ -8,7 +8,7 @@ This module provides utilities for:
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, Union
 
 from .constants import MAX_EVENT_LOG
 from .models import NPC, Player, State

@@ -7,7 +7,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from roomlife.engine import apply_action, new_game
-from roomlife.models import State
 
 
 def test_new_game_seeds_building_npcs_deterministically():
@@ -120,10 +119,6 @@ def test_npc_events_apply_outcomes_to_player():
     """Test that NPC-initiated events apply outcomes (deltas) to the player."""
     state = new_game(seed=456)
 
-    # Record initial state
-    initial_mood = state.player.needs.mood
-    initial_stress = state.player.needs.stress
-
     # Advance time until an NPC event fires (up to 10 days)
     npc_event_fired = False
     for _ in range(10 * 4):
@@ -133,13 +128,15 @@ def test_npc_events_apply_outcomes_to_player():
             npc_event_fired = True
             break
 
-    # If an NPC event fired, check that player state changed
-    # (We can't predict exact values, but we can verify they changed)
+    # If an NPC event fired, verify events contain expected fields
     if npc_event_fired:
-        # Player state should have been affected by at least one NPC event
-        # (mood/stress should have changed from initial values due to event outcomes)
-        # Note: rest action also affects needs, so we just verify events fired
-        assert True
+        npc_events = [e for e in state.event_log if e["event_id"] == "npc.event"]
+        assert len(npc_events) > 0
+        # Check event structure
+        for event in npc_events:
+            assert "npc_id" in event["params"]
+            assert "action_id" in event["params"]
+            assert "tier" in event["params"]
     else:
         # If no event fired in 10 days, that's also valid (low probability but possible)
         assert True
@@ -149,28 +146,36 @@ def test_npc_event_tier_computation_uses_npc_skills():
     """Test that tier computation for NPC events uses NPC skills/traits, not player's."""
     state = new_game(seed=789)
 
-    # Modify player skills to be very high
+    # Modify player skills to be very high (100.0)
     for skill_name in state.player.skills_detailed:
         state.player.skills_detailed[skill_name].value = 100.0
 
-    # Modify one NPC's skills to be very low
+    # Modify one NPC's skills to be very low (0.0)
     nina = state.npcs["npc_neighbor_nina"]
     for skill_name in nina.skills_detailed:
         nina.skills_detailed[skill_name].value = 0.0
 
-    # Advance time until an NPC event fires
-    for _ in range(10 * 4):
+    # Advance time until multiple NPC events fire from Nina
+    for _ in range(20 * 4):  # 20 days to get multiple events
         apply_action(state, "rest", rng_seed=100)
 
-    # Check for NPC events
-    npc_events = [e for e in state.event_log if e["event_id"] == "npc.event"]
+    # Collect events initiated by Nina
+    nina_events = [
+        e for e in state.event_log
+        if e["event_id"] == "npc.event" and e["params"].get("npc_id") == "npc_neighbor_nina"
+    ]
 
-    # If Nina initiated any events, the tier should reflect her low skills
-    # (We can't easily verify this without inspecting the tier distribution,
-    #  but we can at least verify events fired and tiers are in valid range)
-    for event in npc_events:
-        tier = event["params"].get("tier")
-        assert tier in [0, 1, 2, 3]
+    # If Nina initiated events, average tier should be lower than if player skills were used
+    # With 0 skill, we expect more tier 0/1 outcomes
+    # With 100 skill, we'd expect more tier 2/3 outcomes
+    if len(nina_events) > 0:
+        tiers = [e["params"].get("tier", 0) for e in nina_events]
+        avg_tier = sum(tiers) / len(tiers)
+        # Average tier should be low (closer to 0-1 than 2-3)
+        # If player skills were used (100.0), average would be much higher
+        assert avg_tier < 2.0, f"Average tier {avg_tier} is too high for 0-skill NPC"
+        # Verify at least some low tiers occurred
+        assert any(t in [0, 1] for t in tiers), "Expected some tier 0 or 1 outcomes with 0-skill NPC"
 
 
 def test_hallway_encounter_detection():

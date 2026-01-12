@@ -1227,6 +1227,11 @@ actions:
         allowed_slices: ["afternoon", "evening"]
         cooldown_days: 5
     outcomes:
+      0:
+        events: [{ id: "building.package_notice", params: { delivery: "missed_notification" } }]
+        deltas:
+          needs:
+            mood: -1
       1:
         events: [{ id: "building.package_notice", params: {} }]
         deltas:
@@ -1265,6 +1270,12 @@ actions:
         allowed_slices: ["morning", "afternoon", "evening"]
         cooldown_days: 2
     outcomes:
+      0:
+        events: [{ id: "building.hallway_chat", params: { quality: "awkward" } }]
+        deltas:
+          needs:
+            mood: -1
+            stress: 1
       1:
         events: [{ id: "building.hallway_chat", params: { quality: "brief" } }]
         deltas:
