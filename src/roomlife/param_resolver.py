@@ -75,6 +75,23 @@ def _validate_item_constraints(
     return issues
 
 
+def resolve_param_npc_id(state: State, value: Any) -> Tuple[bool, str]:
+    """Validate npc_id parameter.
+
+    Args:
+        state: Game state
+        value: Parameter value (should be an NPC id string)
+
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    if not isinstance(value, str):
+        return False, "npc_id must be a string"
+    if value not in state.npcs:
+        return False, f"unknown npc_id: {value}"
+    return True, ""
+
+
 def validate_parameters(
     state: State,
     spec: Any,
@@ -83,7 +100,7 @@ def validate_parameters(
     missing: List[str] = []
 
     # Supported parameter types
-    SUPPORTED_TYPES = {"space_id", "item_ref", "string"}
+    SUPPORTED_TYPES = {"space_id", "item_ref", "string", "npc_id"}
 
     for p in spec.parameters or []:
         name = p["name"]
@@ -108,6 +125,10 @@ def validate_parameters(
             # String parameters just need to be present and be a string
             if not isinstance(params[name], str):
                 missing.append(f"{name} must be a string")
+        elif ptype == "npc_id":
+            ok, msg = resolve_param_npc_id(state, params[name])
+            if not ok:
+                missing.append(msg)
         else:
             # Fail hard on unknown types to prevent spec drift
             missing.append(f"{name} (unknown parameter type: {ptype})")

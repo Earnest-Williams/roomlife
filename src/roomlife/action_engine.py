@@ -748,6 +748,61 @@ def compute_repair_restoration(state: State, spec: ActionSpec, tier: int) -> int
     return int(round(restore_points))
 
 
+def _apply_social_posthook(
+    state: State,
+    spec: ActionSpec,
+    action_call: ActionCall,
+    tier: int,
+) -> None:
+    """Apply social effects after action execution for social category actions.
+
+    Args:
+        state: Game state
+        spec: Action specification
+        action_call: Action call with params
+        tier: Outcome tier
+    """
+    if spec.category != "social":
+        return
+
+    # Get target NPC from params
+    target_npc_id = action_call.params.get("target_npc_id")
+    if not target_npc_id or target_npc_id not in state.npcs:
+        return
+
+    # Get social block from outcome
+    outcome = spec.outcomes.get(tier)
+    if not outcome:
+        return
+
+    social_block = outcome.get("social", {})
+    if not social_block:
+        return
+
+    # Apply social effects using social.py helper
+    from . import social
+
+    social.apply_social_effects(
+        state=state,
+        actor_id="player",
+        target_id=target_npc_id,
+        action_id=spec.id,
+        tier=tier,
+        social_block=social_block,
+    )
+
+    # Log social interaction event
+    social.record_interaction_event(
+        state=state,
+        event_id="social.interaction",
+        actor="player",
+        target=target_npc_id,
+        target_name=state.npcs[target_npc_id].display_name,
+        action_id=spec.id,
+        tier=tier,
+    )
+
+
 def execute_action(
     state: State,
     spec: ActionSpec,
@@ -1128,3 +1183,6 @@ def execute_action(
     tier = compute_tier(state, spec, item_meta, rng_seed=rng_seed)
     apply_consumes(state, spec, item_meta)
     apply_outcome(state, spec, tier, item_meta, current_tick)
+
+    # Apply social post-hook for social actions
+    _apply_social_posthook(state, spec, action_call, tier)

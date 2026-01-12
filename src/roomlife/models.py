@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from .constants import SKILL_NAMES
@@ -89,6 +89,28 @@ def _default_skills_detailed() -> Dict[str, Skill]:
 
 
 @dataclass
+class NPC:
+    """Building NPC contact (neighbor/landlord/maintenance, NOT roommates).
+
+    NPCs are off-screen contacts that interact with the player via hallway/door/building events.
+    They are "player-shaped enough" for tier computation to work, but have minimal inventory/economy.
+    """
+    id: str
+    display_name: str
+    role: str  # "neighbor", "landlord", "maintenance"
+
+    # Skills/traits needed for tier computation when NPC is the actor
+    skills_detailed: Dict[str, Skill] = field(default_factory=_default_skills_detailed)
+    aptitudes: Aptitudes = field(default_factory=Aptitudes)
+    traits: Traits = field(default_factory=Traits)
+
+    # Social state
+    relationships: Dict[str, int] = field(default_factory=dict)  # {target_id: -100 to +100}
+    memory: List[Dict[str, Any]] = field(default_factory=list)  # Bounded list of interactions
+    flags: Dict[str, Any] = field(default_factory=dict)  # Cooldowns, schedule, etc.
+
+
+@dataclass
 class Player:
     money_pence: int = 5000
     utilities_paid: bool = True
@@ -101,6 +123,8 @@ class Player:
     traits: Traits = field(default_factory=Traits)
     skills_detailed: Dict[str, Skill] = field(default_factory=_default_skills_detailed)
     habit_tracker: Dict[str, int] = field(default_factory=dict)
+    flags: Dict[str, Any] = field(default_factory=dict)
+    memory: List[Dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -108,17 +132,19 @@ class World:
     day: int = 1
     slice: str = "morning"       # morning/afternoon/evening/night
     location: str = "room_001"
+    rng_seed: int = 0            # Simulation seed for deterministic NPCs/director
 
 
 @dataclass
 class State:
-    schema_version: int = 1
+    schema_version: int = 2  # Bumped for NPC + flags + memory support
     world: World = field(default_factory=World)
     player: Player = field(default_factory=Player)
     utilities: Utilities = field(default_factory=Utilities)
     spaces: Dict[str, Space] = field(default_factory=dict)
     items: List[Item] = field(default_factory=list)
     event_log: List[dict] = field(default_factory=list)
+    npcs: Dict[str, NPC] = field(default_factory=dict)  # Building NPCs by id
 
     def get_items_at(self, location: str) -> List[Item]:
         """Get all items at a specific location (optimized spatial query)."""
