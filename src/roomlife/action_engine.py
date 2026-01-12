@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 import random
+import logging
 
 from .models import State, Item, generate_instance_id
 from .action_call import ActionCall
@@ -20,6 +21,75 @@ from .param_resolver import (
     validate_connected_to_param,
     validate_parameters,
 )
+
+log = logging.getLogger(__name__)
+
+
+class ConsumeError(RuntimeError):
+    """Raised when a hard consume requirement cannot be satisfied."""
+    pass
+
+
+def _required_provides(spec: ActionSpec) -> set[str]:
+    """Extract all 'provides' capabilities that are required by an action.
+
+    Args:
+        spec: Action specification
+
+    Returns:
+        Set of required provides capabilities from any_provides and all_provides
+    """
+    req = spec.requires or {}
+    items_req = req.get("items") or {}
+    out: set[str] = set()
+    out.update(items_req.get("any_provides") or [])
+    out.update(items_req.get("all_provides") or [])
+    return out
+
+
+def _select_inventory_instance(state: State, item_id: str) -> Optional[Item]:
+    """Select an inventory instance for sell/discard using lowest durability first.
+
+    Args:
+        state: Game state
+        item_id: Item identifier
+
+    Returns:
+        Item instance, or None if not found
+    """
+    candidates = [it for it in state.items if it.placed_in == "inventory" and it.item_id == item_id]
+    if not candidates:
+        return None
+    # Deterministic: lowest condition_value first, then instance_id for stable tie-breaking
+    candidates.sort(key=lambda it: (getattr(it, "condition_value", 100), it.instance_id))
+    return candidates[0]
+
+
+def _resolve_item_for_sell_or_discard(state: State, params: Dict[str, Any]) -> Optional[Item]:
+    """Resolve item instance from params for sell or discard actions.
+
+    Supports both item_ref (instance_id mode) and item_id (legacy mode).
+
+    Args:
+        state: Game state
+        params: Action parameters
+
+    Returns:
+        Item instance, or None if not found
+    """
+    # Preferred: item_ref with instance_id
+    if "item_ref" in params:
+        item_ref = params["item_ref"]
+        if isinstance(item_ref, dict) and item_ref.get("mode") == "instance_id":
+            instance_id = item_ref.get("instance_id")
+            if instance_id:
+                for item in state.items:
+                    if item.instance_id == instance_id:
+                        return item
+    # Back-compat: item_id picks lowest durability first
+    if "item_id" in params:
+        return _select_inventory_instance(state, params["item_id"])
+    return None
 
 
 def _log(state: State, event_id: str, **params: Any) -> None:
@@ -302,6 +372,24 @@ def validate_action_spec(
     return True, "", []
 
 
+def clamp_tier(spec: ActionSpec, raw_tier: int) -> int:
+    """Clamp tier to the action's tier floor.
+
+    Actions with tier_floor in their modifiers will not return tiers below that floor.
+    Default tier floor is 1 (actions cannot fail unless they opt into tier 0).
+
+    Args:
+        spec: Action specification
+        raw_tier: Raw computed tier (0-3)
+
+    Returns:
+        Clamped tier respecting the action's tier floor
+    """
+    mods = spec.modifiers or {}
+    floor = int(mods.get("tier_floor", 1) or 1)
+    return max(floor, raw_tier)
+
+
 def compute_tier(
     state: State,
     spec: ActionSpec,
@@ -311,7 +399,7 @@ def compute_tier(
     """Compute the outcome tier for an action.
 
     Combines primary skill, secondary skills, traits, item effectiveness,
-    and a small RNG component to determine tier (0-3).
+    and a small RNG component to determine tier (0-3), then clamps to tier_floor.
 
     Args:
         state: Current game state
@@ -320,7 +408,7 @@ def compute_tier(
         rng_seed: Random seed for deterministic outcomes
 
     Returns:
-        Tier from 0 (fail/partial) to 3 (great)
+        Tier from 0 (fail/partial) to 3 (great), clamped to tier_floor
     """
     mods = spec.modifiers or {}
     primary = mods.get("primary_skill")
@@ -353,13 +441,18 @@ def compute_tier(
     base += (rng.random() - 0.5) * 16.0
 
     # Map score to tier thresholds
+    raw_tier = 0
     if base < 25:
-        return 0
-    if base < 55:
-        return 1
-    if base < 85:
-        return 2
-    return 3
+        raw_tier = 0
+    elif base < 55:
+        raw_tier = 1
+    elif base < 85:
+        raw_tier = 2
+    else:
+        raw_tier = 3
+
+    # Clamp to tier floor
+    return clamp_tier(spec, raw_tier)
 
 
 def apply_outcome(
@@ -378,8 +471,16 @@ def apply_outcome(
         tier: Outcome tier (0-3)
         item_meta: Item metadata registry
         current_tick: Current game tick for skill rust tracking
+
+    Raises:
+        KeyError: If the specified tier is not defined in outcomes
     """
-    outcome = spec.outcomes.get(tier) or spec.outcomes.get(1) or {}
+    if tier not in spec.outcomes:
+        raise KeyError(
+            f"Action '{spec.id}' does not define outcome for tier {tier}. "
+            f"Available tiers: {sorted(spec.outcomes.keys())}"
+        )
+    outcome = spec.outcomes[tier]
     deltas = outcome.get("deltas", {})
 
     # Apply needs changes
@@ -493,20 +594,36 @@ def apply_consumes(
     spec: ActionSpec,
     item_meta: Dict[str, ItemMeta],
 ) -> None:
-    """Apply resource consumption for an action.
+    """Apply resource consumption for an action with hard vs soft semantics.
+
+    Hard-fail (ConsumeError) if:
+    - Money is required but insufficient
+    - Item durability consume targets a required capability (in requires.items.any_provides/all_provides)
+    - Inventory item consume fails
+
+    Warn-and-continue if:
+    - Item durability consume targets an optional/incidental capability
 
     Args:
         state: Game state to modify
         spec: Action specification
         item_meta: Item metadata registry
+
+    Raises:
+        ConsumeError: If a hard consume requirement cannot be satisfied
     """
     cons = spec.consumes or {}
 
-    # Money consumption
-    if "money_pence" in cons:
-        state.player.money_pence -= int(cons["money_pence"])
+    # Money consumption - always hard
+    money = int(cons.get("money_pence", 0) or 0)
+    if money:
+        if state.player.money_pence < money:
+            raise ConsumeError(
+                f"Insufficient funds at consume-time: need {money}p, have {state.player.money_pence}p"
+            )
+        state.player.money_pence -= money
 
-    # Inventory consumption
+    # Inventory consumption - always hard
     inv_cons = cons.get("inventory_items", [])
     if inv_cons:
         for item_cons in inv_cons:
@@ -517,6 +634,7 @@ def apply_consumes(
             removed = 0
             for _ in range(quantity):
                 # Find and remove one instance of the item (prefer inventory, then current location)
+                found = False
                 for item in state.items:
                     if item.item_id == item_id and (
                         item.placed_in == "inventory" or
@@ -524,19 +642,37 @@ def apply_consumes(
                     ):
                         state.items.remove(item)
                         removed += 1
+                        found = True
                         break
+
+                if not found:
+                    raise ConsumeError(
+                        f"Inventory consume missing item '{item_id}' for action '{spec.id}'"
+                    )
 
             # Log consumption
             _log(state, "item.consumed", item_id=item_id, quantity=removed)
 
-    # Item durability degradation
+    # Item durability degradation - hard or soft depending on whether provides is required
     dur = cons.get("item_durability")
     if dur:
         prov = dur.get("provides")
         amt = dur.get("amount")
+
+        if not prov:
+            log.warning(f"Item durability consume missing 'provides' field for action '{spec.id}'")
+            return
+
+        # Determine if this is a hard or soft consume
+        required = _required_provides(spec)
+        hard = prov in required
+
         it = _find_best_item_for_provides(state, item_meta, prov, state.world.location)
         if it is None:
-            _log(state, "item.durability_missing", provides=prov)
+            msg = f"Durability consume missing provider '{prov}' for action '{spec.id}'"
+            if hard:
+                raise ConsumeError(msg)
+            log.warning(msg)
             return
 
         if amt is None:
@@ -584,12 +720,32 @@ def compute_repair_cost(state: State, spec: ActionSpec, item: Item) -> int:
     return max(min_cost, int(base_cost - discount))
 
 
-def compute_repair_restoration(state: State, spec: ActionSpec) -> int:
+def compute_repair_restoration(state: State, spec: ActionSpec, tier: int) -> int:
+    """Compute repair restoration amount based on skill and tier.
+
+    Tier multipliers:
+    - 0: 0.0 (no repair)
+    - 1: 0.20 (minor repair)
+    - 2: 0.45 (good repair)
+    - 3: 0.80 (great repair)
+
+    Args:
+        state: Game state
+        spec: Action specification
+        tier: Outcome tier (0-3)
+
+    Returns:
+        Number of condition points to restore
+    """
+    TIER_RESTORE_MULT = {0: 0.0, 1: 0.20, 2: 0.45, 3: 0.80}
+
     formula = (spec.dynamic or {}).get("restoration_formula", {})
     base = float(formula.get("base", 30))
     per_skill = float(formula.get("per_skill_point", 0.5))
     maintenance_skill = _get_skill_value(state, "maintenance")
-    return int(base + maintenance_skill * per_skill)
+
+    restore_points = (base + maintenance_skill * per_skill) * TIER_RESTORE_MULT.get(tier, 0.20)
+    return int(round(restore_points))
 
 
 def execute_action(
@@ -636,13 +792,17 @@ def execute_action(
             _log(state, "action.failed", action_id=spec.id, reason="insufficient_funds")
             return
         state.player.money_pence -= cost
-        restoration = compute_repair_restoration(state, spec)
+        tier = compute_tier(state, spec, item_meta, rng_seed=rng_seed)
+        restoration = compute_repair_restoration(state, spec, tier)
         item.condition_value = min(100, item.condition_value + restoration)
         update_item_condition(item)
-        tier = compute_tier(state, spec, item_meta, rng_seed=rng_seed)
         apply_outcome(state, spec, tier, item_meta, current_tick, emit_events=False)
-        outcome = spec.outcomes.get(tier) or spec.outcomes.get(1) or {}
-        outcome_params = (outcome.get("events", [{}])[0].get("params", {}) or {})
+        outcome = spec.outcomes.get(tier)
+        outcome_params = {}
+        if outcome:
+            events = outcome.get("events", [])
+            if events:
+                outcome_params = events[0].get("params", {}) or {}
         _log(
             state,
             "action.repair_item",
@@ -650,6 +810,7 @@ def execute_action(
             item_id=item.item_id,
             cost_pence=cost,
             restoration=restoration,
+            tier=tier,
             **outcome_params,
         )
         return
@@ -847,26 +1008,17 @@ def execute_action(
     if spec.id == "sell_item":
         from .engine import _get_item_metadata
 
-        item_id = action_call.params.get("item_id")
-        if not item_id or not isinstance(item_id, str):
-            _log(state, "action.failed", action_id=spec.id, reason="invalid_item_id")
-            return
-
-        # Find the item at current location
-        item_to_sell = None
-        for item in state.items:
-            if item.item_id == item_id and item.placed_in == state.world.location:
-                item_to_sell = item
-                break
+        # Use new resolution logic supporting both item_ref and item_id
+        item_to_sell = _resolve_item_for_sell_or_discard(state, action_call.params)
 
         if item_to_sell is None:
             _log(state, "action.failed", action_id=spec.id, reason="item_not_found")
             return
 
         # Get item metadata from items.yaml (legacy format)
-        metadata = _get_item_metadata(item_id)
+        metadata = _get_item_metadata(item_to_sell.item_id)
         base_price = metadata.get("price", 0)
-        item_name = metadata.get("name", item_id)
+        item_name = metadata.get("name", item_to_sell.item_id)
 
         if base_price <= 0:
             _log(state, "action.failed", action_id=spec.id, reason="item_not_sellable")
@@ -889,32 +1041,28 @@ def execute_action(
         tier = compute_tier(state, spec, item_meta, rng_seed=rng_seed)
         apply_outcome(state, spec, tier, item_meta, current_tick, emit_events=False)
 
-        _log(state, "shopping.sell", item_id=item_id, item_name=item_name,
-             earned_pence=sell_price, condition=item_to_sell.condition, tier=tier)
+        _log(state, "shopping.sell",
+             instance_id=item_to_sell.instance_id,
+             item_id=item_to_sell.item_id,
+             item_name=item_name,
+             earned_pence=sell_price,
+             condition=item_to_sell.condition,
+             tier=tier)
         return
 
     if spec.id == "discard_item":
         from .engine import _get_item_metadata
 
-        item_id = action_call.params.get("item_id")
-        if not item_id or not isinstance(item_id, str):
-            _log(state, "action.failed", action_id=spec.id, reason="invalid_item_id")
-            return
-
-        # Find the item at current location
-        item_to_discard = None
-        for item in state.items:
-            if item.item_id == item_id and item.placed_in == state.world.location:
-                item_to_discard = item
-                break
+        # Use new resolution logic supporting both item_ref and item_id
+        item_to_discard = _resolve_item_for_sell_or_discard(state, action_call.params)
 
         if item_to_discard is None:
             _log(state, "action.failed", action_id=spec.id, reason="item_not_found")
             return
 
         # Get item metadata for display name
-        metadata = _get_item_metadata(item_id)
-        item_name = metadata.get("name", item_id)
+        metadata = _get_item_metadata(item_to_discard.item_id)
+        item_name = metadata.get("name", item_to_discard.item_id)
 
         # Remove item
         state.items.remove(item_to_discard)
@@ -922,7 +1070,10 @@ def execute_action(
         # Track minimalism habit
         _track_habit(state, "minimalism", 2)
 
-        _log(state, "shopping.discard", item_id=item_id, item_name=item_name,
+        _log(state, "shopping.discard",
+             instance_id=item_to_discard.instance_id,
+             item_id=item_to_discard.item_id,
+             item_name=item_name,
              condition=item_to_discard.condition)
         return
 
