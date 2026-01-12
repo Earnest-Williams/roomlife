@@ -127,7 +127,7 @@ def test_npc_events_apply_outcomes_to_player():
     for _ in range(10 * 4):
         apply_action(state, "rest", rng_seed=100)
         # Check if any NPC event fired
-        if any(e["event_id"] == "npc.event" for e in state.event_log[-5:]):
+        if any(e["event_id"] == "npc.event" for e in list(state.event_log)[-5:]):
             npc_event_fired = True
             break
 

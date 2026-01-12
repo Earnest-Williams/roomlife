@@ -196,7 +196,7 @@ class RoomLifeAPI:
         # Get recent events (last 10)
         recent_events = [
             EventInfo(event_id=event["event_id"], params=event.get("params", {}))
-            for event in self.state.event_log[-10:]
+            for event in list(self.state.event_log)[-10:]
         ]
 
         return GameStateSnapshot(
@@ -308,7 +308,7 @@ class RoomLifeAPI:
         # Get new events
         new_events = [
             EventInfo(event_id=event["event_id"], params=event.get("params", {}))
-            for event in self.state.event_log[old_event_count:]
+            for event in list(self.state.event_log)[old_event_count:]
         ]
 
         # Calculate state changes
