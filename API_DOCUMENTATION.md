@@ -333,7 +333,7 @@ api.unsubscribe_from_state_changes(handle_state_change)
 Complete snapshot of game state.
 
 **Fields:**
-- `world: WorldInfo` - World/time information
+- `world: WorldInfo` - World/time information (includes rng_seed for determinism)
 - `player_money_pence: int` - Player's money in pence
 - `utilities_paid: bool` - Whether utilities are paid
 - `needs: NeedsSnapshot` - Player needs
@@ -345,7 +345,28 @@ Complete snapshot of game state.
 - `current_location: LocationInfo` - Current location
 - `all_locations: Dict[str, LocationInfo]` - All locations
 - `recent_events: List[EventInfo]` - Recent events
-- `schema_version: int` - State schema version
+- `npcs: Dict[str, NPCInfo]` - Building NPCs by ID (neighbors, landlord, maintenance)
+- `relationships: Dict[str, int]` - Player's relationships with NPCs (-100 to +100)
+- `memory: List[Dict[str, Any]]` - Player's social memory (bounded to 100 entries)
+- `flags: Dict[str, Any]` - Player flags (goals, pacing, cooldowns, etc.)
+- `schema_version: int` - State schema version (current: 2)
+
+**Methods:**
+- `to_dict() → Dict[str, Any]` - Convert to JSON-serializable dict
+
+### NPCInfo
+
+Information about a building NPC.
+
+**Fields:**
+- `id: str` - NPC unique identifier
+- `display_name: str` - Human-readable name
+- `role: str` - NPC role ("neighbor", "landlord", "maintenance")
+- `skills_detailed: Dict[str, SkillInfo]` - NPC's skills (for tier computation)
+- `aptitudes: Dict[str, float]` - NPC's aptitudes
+- `traits: Dict[str, int]` - NPC's traits
+- `relationships: Dict[str, int]` - NPC's relationships (includes relationship to player)
+- `memory: List[Dict[str, Any]]` - NPC's social memory
 
 **Methods:**
 - `to_dict() → Dict[str, Any]` - Convert to JSON-serializable dict
@@ -585,28 +606,137 @@ The simulation currently supports these actions:
 ### Movement
 - **move_<location>**: Move between connected locations
 
+### Social Actions (NEW)
+- **social.chat_neighbor**: Have a friendly conversation with a neighbor (requires `target_npc_id` parameter)
+- **social.apologize_noise**: Apologize to a neighbor about noise complaints (requires `target_npc_id` parameter)
+- **social.request_maintenance**: Request maintenance from building staff (requires `target_npc_id` parameter)
+
+**Note**: All social actions require:
+- The `target_npc_id` parameter (type: `npc_id`)
+- Current location to have the "hallway" tag
+- Target NPC to exist in `state.npcs`
+
+Social actions update:
+- Bidirectional relationships between player and NPC
+- Social memory for both parties
+- Player mood and stress based on outcome tier
+
 ## Event Types
 
 Events are logged when actions occur. Common event types:
 
+### Game Events
 - `game.start`: Game started
 - `time.advance`: Time advanced to next slice
 - `time.new_day`: New day started
+
+### Action Events
 - `action.work`: Work action completed
 - `action.study`: Study action completed
 - `action.sleep`: Sleep action completed
 - `action.shower`: Shower action completed
 - `action.move`: Movement between locations
 - `action.failed`: Action failed (with reason)
+
+### Social Events (NEW)
+- `social.interaction`: Player-initiated social action completed (includes actor, target, action_id, tier)
+- `social.chat`: Chat interaction outcome
+- `npc.event`: NPC-initiated building event (includes npc_id, npc_name, npc_role, action_id, tier)
+- `npc.encounter`: Player encountered an NPC in a hallway (includes npc_id, npc_name, npc_role, location)
+
+### Director Events (NEW)
+- `director.goals_seeded`: Daily goals have been selected (includes goal_action_ids, day)
+
+### Utility & Economy Events
 - `food.eat`: Food consumed
 - `bills.paid`: Utilities paid
 - `bills.unpaid`: Insufficient funds for utilities
 - `bills.skipped`: Utilities skipped
-- `trait.drift`: Trait changed due to habit accumulation
 - `utility.no_water`: No water utility
 - `utility.no_heat`: No heat utility
 - `utility.no_power`: No power utility
+
+### System Events
+- `trait.drift`: Trait changed due to habit accumulation
 - `building.noise`: Random noise event
+- `building.hallway_chat`: NPC-initiated hallway interaction
+
+## Working with NPCs and Social Systems
+
+### Accessing NPCs
+
+```python
+snapshot = api.get_state_snapshot()
+
+# List all NPCs
+for npc_id, npc in snapshot.npcs.items():
+    print(f"{npc.display_name} ({npc.role})")
+
+    # Check relationship with player
+    relationship = snapshot.relationships.get(npc_id, 0)
+    print(f"  Relationship: {relationship}/100")
+
+    # View NPC's relationship back to player
+    npc_to_player = npc.relationships.get("player", 0)
+    print(f"  NPC thinks of you: {npc_to_player}/100")
+```
+
+### Executing Social Actions
+
+```python
+# Validate social action first
+validation = api.validate_action("social.chat_neighbor")
+if not validation.valid:
+    print(f"Cannot chat: {validation.reason}")
+    # Check if we're in the right location
+    if "hallway" not in validation.missing_requirements:
+        print("Move to a hallway first!")
+
+# Execute with NPC parameter
+# Note: Actual execution needs ActionCall with parameters
+from roomlife.action_call import ActionCall
+call = ActionCall("social.chat_neighbor", {"target_npc_id": "npc_neighbor_nina"})
+
+# Through the API (if supported), or directly through engine
+# result = api.execute_action_with_params("social.chat_neighbor", {"target_npc_id": "npc_neighbor_nina"})
+```
+
+### Accessing Daily Goals
+
+```python
+snapshot = api.get_state_snapshot()
+
+# Get today's goals (if director is active)
+goals = snapshot.flags.get("goals.today", [])
+
+for goal in goals:
+    action_id = goal["action_id"]
+    valid = goal["valid"]
+    tier_dist = goal["tier_distribution"]
+    notes = goal["notes"]
+
+    print(f"Goal: {action_id}")
+    if valid:
+        print(f"  Status: Ready to execute")
+        print(f"  Tier chances: {tier_dist}")
+        print(f"  Notes: {', '.join(notes)}")
+    else:
+        print(f"  Status: Not ready - {goal['reason']}")
+        print(f"  Missing: {', '.join(goal['missing'])}")
+```
+
+### Checking Pacing
+
+```python
+snapshot = api.get_state_snapshot()
+pacing = snapshot.flags.get("pacing", "normal")
+print(f"Current difficulty: {pacing}")
+
+# Pacing affects:
+# - Needs decay rate (relaxed = slower, hard = faster)
+# - NPC event frequency (relaxed = fewer, hard = more)
+# - Random event probability
+```
 
 ## Best Practices
 
