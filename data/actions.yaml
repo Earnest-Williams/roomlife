@@ -348,6 +348,7 @@ actions:
         resource_management: 0.15
       item_provides_weights:
         cleaning_kit: 1.0
+      tier_floor: 0   # consumes required cleaning_kit; allow failure tier
     dynamic:
       director:
         suggest: true
@@ -358,6 +359,12 @@ actions:
         provides: "cleaning_kit"
         amount: 2
     outcomes:
+      0:
+        events: [{ id: "action.failed", params: { reason: "clean_room_failed" } }]
+        deltas:
+          needs:
+            mood: -2
+            stress: 2
       1:
         events: [{ id: "action.clean_room", params: {} }]
         deltas:
