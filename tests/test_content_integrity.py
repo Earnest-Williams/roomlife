@@ -106,7 +106,7 @@ def test_items_meta_ids_exist_in_items_yaml():
     meta_ids = {it["id"] for it in items_meta_raw.get("items", [])}
 
     missing = meta_ids - item_ids
-    assert not missing, f"items_meta.yaml defines metadata for non-existent items:\n" + "\n".join(sorted(missing))
+    assert not missing, "items_meta.yaml defines metadata for non-existent items:\n" + "\n".join(sorted(missing))
 
 
 def test_all_parameter_types_are_supported():
@@ -129,4 +129,4 @@ def test_all_parameter_types_are_supported():
             if param_type not in SUPPORTED_TYPES:
                 unsupported.append(f"{action_id}.{param_name}: {param_type}")
 
-    assert not unsupported, f"actions.yaml contains unsupported parameter types:\n" + "\n".join(unsupported)
+    assert not unsupported, "actions.yaml contains unsupported parameter types:\n" + "\n".join(unsupported)
