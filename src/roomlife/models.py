@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import random
+from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Deque, Dict, List, Optional
 from uuid import uuid4
 
-from .constants import SKILL_NAMES
+from .constants import MAX_EVENT_LOG, SKILL_NAMES
 
 
 @dataclass
@@ -133,6 +134,11 @@ class World:
     slice: str = "morning"       # morning/afternoon/evening/night
     location: str = "room_001"
     rng_seed: int = 0            # Simulation seed for deterministic NPCs/director
+    rng: random.Random = field(
+        default_factory=random.Random,
+        repr=False,
+        compare=False,
+    )  # Reusable RNG instance (excluded from serialization via custom save/load)
 
 
 @dataclass
@@ -143,7 +149,7 @@ class State:
     utilities: Utilities = field(default_factory=Utilities)
     spaces: Dict[str, Space] = field(default_factory=dict)
     items: List[Item] = field(default_factory=list)
-    event_log: List[dict] = field(default_factory=list)
+    event_log: Deque[dict] = field(default_factory=lambda: deque(maxlen=MAX_EVENT_LOG))
     npcs: Dict[str, NPC] = field(default_factory=dict)  # Building NPCs by id
 
     def get_items_at(self, location: str) -> List[Item]:

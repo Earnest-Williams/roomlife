@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import random
+from collections import deque
 from dataclasses import asdict
 from pathlib import Path
 from typing import Dict
 
 import yaml
 
-from .constants import SKILL_NAMES
+from .constants import MAX_EVENT_LOG, SKILL_NAMES
 from .content_specs import load_spaces
 from .models import (
     Aptitudes,
@@ -25,9 +27,22 @@ from .models import (
 
 
 def save_state(state: State, path: Path) -> None:
+    """Save game state to YAML file, excluding non-serializable fields."""
     path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Convert state to dict and handle non-serializable fields
+    state_dict = asdict(state)
+
+    # Remove RNG instance (non-serializable)
+    if "world" in state_dict and "rng" in state_dict["world"]:
+        del state_dict["world"]["rng"]
+
+    # Convert deque to list for serialization
+    if "event_log" in state_dict:
+        state_dict["event_log"] = list(state_dict["event_log"])
+
     path.write_text(
-        yaml.safe_dump(asdict(state), default_flow_style=False, sort_keys=True), encoding="utf-8"
+        yaml.safe_dump(state_dict, default_flow_style=False, sort_keys=True), encoding="utf-8"
     )
 
 
@@ -62,7 +77,11 @@ def load_state(path: Path) -> State:
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
 
     s = State(schema_version=raw["schema_version"])
-    s.world = World(**raw["world"])
+
+    # Load World and recreate RNG from seed
+    world_data = raw["world"]
+    s.world = World(**world_data)
+    s.world.rng = random.Random(s.world.rng_seed)
     p = raw["player"]
     s.player = Player(
         money_pence=p["money_pence"],
@@ -109,7 +128,10 @@ def load_state(path: Path) -> State:
         item_data.setdefault("slot", "floor")
         items.append(Item(**item_data))
     s.items = items
-    s.event_log = list(raw["event_log"])
+
+    # Load event_log as bounded deque (maintains maxlen behavior from State definition)
+    s.event_log = deque(raw["event_log"], maxlen=MAX_EVENT_LOG)
+
     s.npcs = {}
     for npc_id, npc_data in (raw.get("npcs") or {}).items():
         s.npcs[npc_id] = NPC(
