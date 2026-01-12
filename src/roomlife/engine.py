@@ -34,6 +34,7 @@ from .action_engine import (
     validate_action_spec,
 )
 from . import npc_ai
+from . import director
 
 
 def _log(state: State, event_id: str, **params: object) -> None:
@@ -343,13 +344,23 @@ def _calculate_current_tick(state: State) -> int:
 
 
 def _ensure_specs_loaded() -> None:
-    """Ensure action specs and item metadata are loaded from YAML."""
+    """Ensure action specs and item metadata are loaded from YAML.
+
+    This function loads base content from data/ directory, then merges
+    optional content packs from data/packs/<pack_id>/ in deterministic order.
+
+    Pack merge rules:
+    - Packs are loaded in sorted order by pack directory name
+    - Actions with same id override base actions (later packs override earlier packs)
+    - This allows packs to provide variants or extensions of base actions
+    """
     global _ACTION_SPECS, _ITEM_META, _SPACE_SPECS
 
     # Find data directory relative to this file
     data_dir = Path(__file__).parent.parent.parent / "data"
 
     if _ACTION_SPECS is None:
+        # Load base actions
         actions_path = data_dir / "actions.yaml"
         if actions_path.exists():
             try:
@@ -359,6 +370,21 @@ def _ensure_specs_loaded() -> None:
                 _ACTION_SPECS = {}
         else:
             _ACTION_SPECS = {}
+
+        # Load content packs (deterministic order by sorted directory name)
+        packs_dir = data_dir / "packs"
+        if packs_dir.exists() and packs_dir.is_dir():
+            pack_dirs = sorted([d for d in packs_dir.iterdir() if d.is_dir()])
+            for pack_dir in pack_dirs:
+                pack_actions_path = pack_dir / "actions.yaml"
+                if pack_actions_path.exists():
+                    try:
+                        pack_actions = load_actions(pack_actions_path)
+                        # Merge pack actions (override if id matches)
+                        _ACTION_SPECS.update(pack_actions)
+                        print(f"Loaded content pack: {pack_dir.name} ({len(pack_actions)} actions)")
+                    except ValueError as exc:
+                        print(f"Warning: Failed to load pack {pack_dir.name}/actions.yaml: {exc}")
 
     if _ITEM_META is None:
         items_path = data_dir / "items_meta.yaml"
@@ -531,10 +557,13 @@ def _advance_time(state: State) -> None:
         state.world.slice = TIME_SLICES[idx + 1]
     _log(state, "time.advance", day=state.world.day, slice=state.world.slice)
 
-    # Trigger daily NPC building event on day rollover
+    # Trigger daily systems on day rollover
     if new_day:
         _ensure_specs_loaded()
         current_tick = _calculate_current_tick(state)
+        # Seed daily goals
+        director.seed_daily_goals(state, _ACTION_SPECS, _ITEM_META)
+        # Trigger NPC building event
         npc_ai.maybe_trigger_daily_building_event(state, _ACTION_SPECS, _ITEM_META, current_tick)
 
 
@@ -554,13 +583,25 @@ def _apply_environment(state: State, rng: random.Random) -> None:
         state.utilities.heat = True
         state.utilities.water = True
 
+    # Pacing system: adjust needs decay rates and mishap frequency
+    pacing = state.player.flags.get("pacing", "normal")
+    if pacing == "relaxed":
+        needs_multiplier = 0.7  # Slower needs decay
+        mishap_multiplier = 0.5  # Fewer mishaps
+    elif pacing == "hard":
+        needs_multiplier = 1.5  # Faster needs decay
+        mishap_multiplier = 2.0  # More mishaps
+    else:  # "normal"
+        needs_multiplier = 1.0
+        mishap_multiplier = 1.0
+
     n = state.player.needs
-    n.hunger = min(100, n.hunger + 8)
-    n.fatigue = min(100, n.fatigue + 6)
+    n.hunger = min(100, n.hunger + int(8 * needs_multiplier))
+    n.fatigue = min(100, n.fatigue + int(6 * needs_multiplier))
     if state.utilities.water:
-        n.hygiene = max(0, n.hygiene - 4)
+        n.hygiene = max(0, n.hygiene - int(4 * needs_multiplier))
     else:
-        n.hygiene = max(0, n.hygiene - 8)
+        n.hygiene = max(0, n.hygiene - int(8 * needs_multiplier))
         n.mood = max(0, n.mood - 2)
         _log(state, "utility.no_water")
 
@@ -621,12 +662,12 @@ def _apply_environment(state: State, rng: random.Random) -> None:
     elif n.health < 50:
         _log(state, "health.warning", health=n.health)
 
-    # Random events
-    if rng.random() < 0.05:
+    # Random events (adjusted by pacing mishap multiplier)
+    if rng.random() < (0.05 * mishap_multiplier):
         _log(state, "building.noise", severity="low")
 
-    # Small chance of minor injury from accidents
-    if rng.random() < 0.02:
+    # Small chance of minor injury from accidents (adjusted by pacing)
+    if rng.random() < (0.02 * mishap_multiplier):
         injury_amount = rng.randint(5, 15)
         n.injury = min(100, n.injury + injury_amount)
         # Recalculate health to reflect the new injury immediately
