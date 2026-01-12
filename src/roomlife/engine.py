@@ -24,7 +24,7 @@ from .constants import (
     TRAIT_DRIFT_CONFIGS,
     TRAIT_DRIFT_THRESHOLD,
 )
-from .models import Item, Skill, Space, State, generate_instance_id
+from .models import Item, NPC, Skill, Space, State, generate_instance_id
 from .content_specs import load_spaces, load_actions, load_item_meta
 from .action_call import ActionCall
 from .action_engine import (
@@ -33,6 +33,7 @@ from .action_engine import (
     update_item_condition,
     validate_action_spec,
 )
+from . import npc_ai
 
 
 def _log(state: State, event_id: str, **params: object) -> None:
@@ -394,6 +395,9 @@ def new_game(seed: Optional[int] = None) -> State:
     """
     state = State()
 
+    # Store simulation seed for deterministic NPC/director behavior
+    state.world.rng_seed = seed if seed is not None else 0
+
     # Create RNG for deterministic ID generation if seed provided
     rng = random.Random(seed) if seed is not None else None
 
@@ -476,6 +480,30 @@ def new_game(seed: Optional[int] = None) -> State:
             bulk=metadata.get("bulk", 1),
         ))
 
+    # Seed building NPCs (2-3 contacts: neighbor, landlord, maintenance)
+    state.npcs = {
+        "npc_neighbor_nina": NPC(
+            id="npc_neighbor_nina",
+            display_name="Nina",
+            role="neighbor",
+        ),
+        "npc_landlord_park": NPC(
+            id="npc_landlord_park",
+            display_name="Mr. Park",
+            role="landlord",
+        ),
+        "npc_maint_lee": NPC(
+            id="npc_maint_lee",
+            display_name="Lee",
+            role="maintenance",
+        ),
+    }
+
+    # Initialize NPC relationships to neutral (0)
+    for npc_id in state.npcs:
+        state.npcs[npc_id].relationships["player"] = 0
+        state.player.relationships[npc_id] = 0
+
     # Validate that the starting location exists in the world
     if state.world.location not in state.spaces:
         raise ValueError(f"Starting location '{state.world.location}' does not exist in world spaces")
@@ -493,13 +521,21 @@ def _advance_time(state: State) -> None:
         _log(state, "time.advance", day=state.world.day, slice=state.world.slice)
         return
 
+    new_day = False
     if idx == len(TIME_SLICES) - 1:
         state.world.day += 1
         state.world.slice = TIME_SLICES[0]
+        new_day = True
         _log(state, "time.new_day", day=state.world.day)
     else:
         state.world.slice = TIME_SLICES[idx + 1]
     _log(state, "time.advance", day=state.world.day, slice=state.world.slice)
+
+    # Trigger daily NPC building event on day rollover
+    if new_day:
+        _ensure_specs_loaded()
+        current_tick = _calculate_current_tick(state)
+        npc_ai.maybe_trigger_daily_building_event(state, _ACTION_SPECS, _ITEM_META, current_tick)
 
 
 def _apply_environment(state: State, rng: random.Random) -> None:
@@ -624,12 +660,22 @@ def apply_action(
     action_call = ActionCall.from_legacy(action_id) if params is None else ActionCall(action_id, params or {})
     spec = _ACTION_SPECS.get(action_call.action_id) if _ACTION_SPECS else None
     if spec is not None:
+        # Capture location before action for encounter detection
+        before_location = state.world.location
+
         # Validate action
         ok, reason, missing = validate_action_spec(state, spec, _ITEM_META, action_call.params)
         if not ok:
             _log(state, "action.failed", action_id=action_id, reason=reason, missing=missing)
         else:
             execute_action(state, spec, _ITEM_META, action_call, rng_seed, current_tick)
+
+            # Check for NPC encounter if player moved to a new location
+            after_location = state.world.location
+            if after_location != before_location:
+                npc_ai.on_player_entered_space(
+                    state, before_location, after_location, _ACTION_SPECS, _ITEM_META, current_tick
+                )
 
         # Always advance time and apply environment
         _advance_time(state)
