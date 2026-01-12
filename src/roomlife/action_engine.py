@@ -48,7 +48,7 @@ def _required_provides(spec: ActionSpec) -> set[str]:
 
 
 def _select_inventory_instance(state: State, item_id: str) -> Optional[Item]:
-    """Select an inventory instance for sell/discard using lowest durability first.
+    """Select a reachable instance for sell/discard using lowest durability first.
 
     Args:
         state: Game state
@@ -57,7 +57,10 @@ def _select_inventory_instance(state: State, item_id: str) -> Optional[Item]:
     Returns:
         Item instance, or None if not found
     """
-    candidates = [it for it in state.items if it.placed_in == "inventory" and it.item_id == item_id]
+    candidates = [
+        it for it in state.items
+        if it.item_id == item_id and it.placed_in in ("inventory", state.world.location)
+    ]
     if not candidates:
         return None
     # Deterministic: lowest condition_value first, then instance_id for stable tie-breaking
@@ -204,11 +207,12 @@ def _apply_skill_xp(state: State, skill_name: str, xp_gain: float, current_tick:
     skill.last_tick = current_tick
 
     # Update aptitude
-    aptitude_name = SKILL_TO_APTITUDE[skill_name]
-    aptitude = getattr(state.player.aptitudes, aptitude_name)
-    aptitude_gain = actual_gain * 0.002
-    new_aptitude = aptitude + aptitude_gain
-    setattr(state.player.aptitudes, aptitude_name, new_aptitude)
+    aptitude_name = SKILL_TO_APTITUDE.get(skill_name)
+    if aptitude_name:
+        aptitude = getattr(state.player.aptitudes, aptitude_name)
+        aptitude_gain = actual_gain * 0.002
+        new_aptitude = aptitude + aptitude_gain
+        setattr(state.player.aptitudes, aptitude_name, new_aptitude)
 
     return actual_gain
 
@@ -524,7 +528,7 @@ def apply_outcome(
                 item_id=item_id,
                 placed_in=("inventory" if placed_in == "inventory" else placed_in),
                 container=None,
-                slot="floor",
+                slot=("inventory" if placed_in == "inventory" else "floor"),
                 quality=1.0,
                 condition="pristine",
                 condition_value=100,
