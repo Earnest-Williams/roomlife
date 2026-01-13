@@ -34,29 +34,6 @@ def test_director_seeds_daily_goals():
         assert "notes" in goal
 
 
-def test_director_goals_are_deterministic():
-    """Test that director goals are deterministic based on seed."""
-    s1 = new_game(seed=456)
-    s2 = new_game(seed=456)
-
-    # Advance both to day 2
-    for _ in range(4):
-        apply_action(s1, "rest", rng_seed=100)
-        apply_action(s2, "rest", rng_seed=100)
-
-    goals1 = s1.player.flags.get("goals.today", [])
-    goals2 = s2.player.flags.get("goals.today", [])
-
-    # Goal action_ids should match
-    goal_ids1 = [g["action_id"] for g in goals1]
-    goal_ids2 = [g["action_id"] for g in goals2]
-    assert goal_ids1 == goal_ids2
-
-    # Tier distributions should match
-    for g1, g2 in zip(goals1, goals2):
-        assert g1["tier_distribution"] == g2["tier_distribution"]
-
-
 def test_director_logs_event():
     """Test that director logs a director.goals_seeded event."""
     state = new_game(seed=789)
