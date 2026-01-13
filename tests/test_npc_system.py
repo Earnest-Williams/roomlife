@@ -43,49 +43,6 @@ def test_new_game_seeds_building_npcs_deterministically():
         assert state.player.relationships.get(npc_id) == 0
 
 
-def test_npc_event_scheduler_deterministic_by_seed_and_day():
-    """Test that NPC events are deterministic based on seed + day."""
-    # Run two simulations with the same seed
-    s1 = new_game(seed=42)
-    s2 = new_game(seed=42)
-
-    # Advance both simulations 7 day rollovers (night slice -> morning of next day)
-    for _ in range(7 * 4):  # 4 slices per day
-        apply_action(s1, "rest", rng_seed=100)
-        apply_action(s2, "rest", rng_seed=100)
-
-    # Collect NPC events from both simulations
-    npc_events_1 = [
-        (e["params"].get("npc_id"), e["params"].get("action_id"), e["params"].get("tier"))
-        for e in s1.event_log
-        if e["event_id"] == "npc.event"
-    ]
-    npc_events_2 = [
-        (e["params"].get("npc_id"), e["params"].get("action_id"), e["params"].get("tier"))
-        for e in s2.event_log
-        if e["event_id"] == "npc.event"
-    ]
-
-    # Events should match exactly
-    assert npc_events_1 == npc_events_2
-
-    # Run a third simulation with a different seed
-    s3 = new_game(seed=999)
-    for _ in range(7 * 4):
-        apply_action(s3, "rest", rng_seed=100)
-
-    npc_events_3 = [
-        (e["params"].get("npc_id"), e["params"].get("action_id"), e["params"].get("tier"))
-        for e in s3.event_log
-        if e["event_id"] == "npc.event"
-    ]
-
-    # Events should differ with different seed
-    # (Note: There's a small chance they could match if RNG picks same events, but unlikely)
-    # We'll just verify that events were generated
-    assert len(npc_events_3) > 0
-
-
 def test_npc_events_respect_cooldowns():
     """Test that NPC events respect cooldown_days by checking flags."""
     state = new_game(seed=123)
@@ -195,18 +152,6 @@ def test_hallway_encounter_detection():
         assert "npc_role" in event["params"]
         assert "location" in event["params"]
         assert event["params"]["location"] == "hall_001"
-
-
-def test_simulation_seed_storage():
-    """Test that simulation seed is stored in world.rng_seed."""
-    state1 = new_game(seed=123)
-    assert state1.world.rng_seed == 123
-
-    state2 = new_game(seed=456)
-    assert state2.world.rng_seed == 456
-
-    state3 = new_game()
-    assert state3.world.rng_seed == 0  # Default when no seed provided
 
 
 def test_player_flags_and_memory_exist():

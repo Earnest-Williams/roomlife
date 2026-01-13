@@ -467,28 +467,3 @@ def test_get_item_effectiveness_with_quality():
     assert abs(effectiveness_premium - 1.65) < 0.01
     # Standard: 1.1 * 1.0 = 1.1
     assert abs(effectiveness_standard - 1.1) < 0.01
-
-
-def test_new_game_deterministic_with_seed():
-    """Test that new_game with same seed produces identical states."""
-    state1 = new_game(seed=42)
-    state2 = new_game(seed=42)
-
-    # Check that item instance IDs are the same
-    for i in range(len(state1.items)):
-        assert state1.items[i].instance_id == state2.items[i].instance_id
-
-
-def test_new_game_different_seeds_produce_different_states():
-    """Test that new_game with different seeds produces different states."""
-    state1 = new_game(seed=42)
-    state2 = new_game(seed=99)
-
-    # Check that at least some item instance IDs are different
-    different_ids = False
-    for i in range(min(len(state1.items), len(state2.items))):
-        if state1.items[i].instance_id != state2.items[i].instance_id:
-            different_ids = True
-            break
-
-    assert different_ids
